@@ -4,12 +4,13 @@ import type { RoadFeature } from './osm';
 
 const KEY = 'roadwise.reports.v1';
 
-export type ReportKind = 'pothole' | 'bump' | 'camera';
+export type ReportKind = 'pothole' | 'bump' | 'camera' | 'signals';
 
 const TEMPLATES: Record<ReportKind, Pick<RoadFeature, 'kind' | 'subtype' | 'label' | 'icon'>> = {
   pothole: { kind: 'pothole', subtype: 'user', label: 'Pothole', icon: 'rw-pothole' },
   bump: { kind: 'bump', subtype: 'user', label: 'Speed bump', icon: 'rw-bump' },
   camera: { kind: 'camera', subtype: 'speed', label: 'Speed camera', icon: 'rw-camera' },
+  signals: { kind: 'sign', subtype: 'traffic_signals', label: 'Traffic lights', icon: 'rw-signals' },
 };
 
 export function loadReports(): RoadFeature[] {

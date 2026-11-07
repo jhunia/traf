@@ -155,7 +155,7 @@ input { font: inherit; }
 .fabs-bottom { display: flex; flex-direction: column-reverse; gap: 10px; }
 .report-menu { right: 58px; bottom: 0; width: 280px; }
 .report-menu h3 { margin-bottom: 10px; }
-.report-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.report-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .report-grid button { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px; border-radius: 12px; background: var(--grey); font-size: 13px; font-weight: 600; }
 .report-grid button:hover { background: var(--grey-2); }
 .report-grid img { width: 36px; height: 36px; }

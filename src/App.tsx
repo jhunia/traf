@@ -11,7 +11,7 @@ import { useSimulation } from './hooks/useSimulation';
 import { useSpeedLimit } from './hooks/useSpeedLimit';
 import { useRoadFeatures } from './hooks/useRoadFeatures';
 import { useRegionData } from './hooks/useRegionData';
-import { cumulative, formatDistance, formatDuration, type BBox, type LngLat } from './lib/geo';
+import { cumulative, distance, formatDistance, formatDuration, type BBox, type LngLat } from './lib/geo';
 import { sentence, spokenDistance } from './lib/maneuvers';
 import { analyzeTraffic, fetchScenarios, freeFlowFactor, jamWord, routeDelay, type TrafficScenarios } from './lib/traffic';
 import { TrafficSummary } from './components/TrafficSummary';
@@ -21,7 +21,7 @@ import { NavBanner } from './components/NavBanner';
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 import { REGION, SPEED_TOLERANCE } from './lib/ghana';
-import { getRoutes, type Route } from './lib/routing';
+import { getRoutes, type Route, type RoadControl } from './lib/routing';
 import { reverseGeocode, shortLabel, type Place } from './lib/search';
 import { spokenAlert, upcomingAlerts } from './lib/alerts';
 import { loadReports, makeReport, saveReports, type ReportKind } from './lib/reports';
@@ -38,7 +38,21 @@ const REPORTS: { kind: ReportKind; label: string; icon: string }[] = [
   { kind: 'pothole', label: 'Pothole', icon: 'rw-pothole' },
   { kind: 'bump', label: 'Speed bump', icon: 'rw-bump' },
   { kind: 'camera', label: 'Camera', icon: 'rw-camera' },
+  { kind: 'signals', label: 'Traffic light', icon: 'rw-signals' },
 ];
+
+const CONTROL_LABEL: Record<RoadControl['type'], string> = {
+  traffic_signals: 'Traffic lights',
+  stop: 'Stop sign',
+  give_way: 'Give way',
+  railway_crossing: 'Railway crossing',
+};
+const CONTROL_ICON: Record<RoadControl['type'], string> = {
+  traffic_signals: 'rw-signals',
+  stop: 'rw-stop',
+  give_way: 'rw-give-way',
+  railway_crossing: 'rw-sign',
+};
 
 const clock = (secondsFromNow: number) =>
   new Date(Date.now() + secondsFromNow * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -155,10 +169,28 @@ export default function App() {
   // Reported TraffiTech cameras: exact points, plus where the route enters a camera road or area.
   const camPoints = useMemo(() => pointFeatures(cameras), [cameras]);
   const camEntries = useMemo(() => (driving ? routeEntryFeatures(cameras, routeLine) : []), [cameras, routeLine, driving]);
-  const mapFeatures = useMemo(() => [...features, ...camPoints], [features, camPoints]);
+  // Traffic lights / stop / give-way / rail crossings that Mapbox knows on the route but
+  // OpenStreetMap is missing (e.g. most signalised junctions between West Hills and Mallam).
+  const controlFeatures = useMemo<RoadFeature[]>(() => {
+    if (!route) return [];
+    const osmSigns = features.filter((f) => f.kind === 'sign');
+    return route.controls
+      .filter((c) => !osmSigns.some((f) => distance(f.lngLat, c.lngLat) < 35))
+      .map((c) => ({
+        id: `mb-${c.type}-${c.lngLat.map((n) => n.toFixed(5)).join(',')}`,
+        kind: 'sign' as const,
+        subtype: c.type,
+        label: CONTROL_LABEL[c.type],
+        icon: CONTROL_ICON[c.type],
+        lngLat: c.lngLat,
+        source: 'osm' as const,
+      }));
+  }, [route, features]);
+
+  const mapFeatures = useMemo(() => [...features, ...camPoints, ...controlFeatures], [features, camPoints, controlFeatures]);
   const visible = useMemo(
-    () => [...features, ...camPoints, ...camEntries, ...reports].filter((f) => layers[f.kind]),
-    [features, camPoints, camEntries, reports, layers],
+    () => [...features, ...camPoints, ...camEntries, ...controlFeatures, ...reports].filter((f) => layers[f.kind]),
+    [features, camPoints, camEntries, controlFeatures, reports, layers],
   );
   const alerts = useMemo(() => {
     if (!position) return [];
@@ -383,6 +415,7 @@ export default function App() {
       <MapView
         features={mapFeatures}
         cameras={cameras}
+        jams={routeJams}
         reports={reports}
         routes={driving && route ? [route] : routes}
         selectedRoute={driving ? 0 : selected}

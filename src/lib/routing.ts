@@ -26,13 +26,21 @@ export interface Route {
   distances: number[] | null; // metres per segment
   names: (string | null)[] | null; // street name per segment
   steps: Step[];
+  controls: RoadControl[]; // traffic lights, stop/give-way signs, rail crossings at junctions on the route
   source: 'mapbox' | 'osrm';
 }
 
+/** A junction control the routing provider knows about (fills gaps in OpenStreetMap). */
+export interface RoadControl {
+  type: 'traffic_signals' | 'stop' | 'give_way' | 'railway_crossing';
+  lngLat: LngLat;
+}
+
 /** Turn-by-turn steps, each tied to where it happens on the route geometry. */
-function parseSteps(leg: any): { steps: Step[]; names: (string | null)[] } {
+function parseSteps(leg: any): { steps: Step[]; names: (string | null)[]; controls: RoadControl[] } {
   const steps: Step[] = [];
   const names: (string | null)[] = [];
+  const controls: RoadControl[] = [];
   let offset = 0;
   for (const s of leg?.steps ?? []) {
     const m = s.maneuver ?? {};
@@ -45,11 +53,19 @@ function parseSteps(leg: any): { steps: Step[]; names: (string | null)[] } {
       instruction: m.instruction ?? null,
       startIndex: offset,
     });
+    for (const x of s.intersections ?? []) {
+      const at = x.location as LngLat | undefined;
+      if (!at) continue;
+      if (x.traffic_signal) controls.push({ type: 'traffic_signals', lngLat: at });
+      else if (x.stop_sign) controls.push({ type: 'stop', lngLat: at });
+      else if (x.yield_sign) controls.push({ type: 'give_way', lngLat: at });
+      else if (x.railway_crossing) controls.push({ type: 'railway_crossing', lngLat: at });
+    }
     const n = Math.max(0, (s.geometry?.coordinates?.length ?? 1) - 1);
     for (let k = 0; k < n; k++) names.push(name);
     offset += n;
   }
-  return { steps, names };
+  return { steps, names, controls };
 }
 
 async function osrmRoutes(from: LngLat, to: LngLat): Promise<Route[]> {
@@ -61,7 +77,7 @@ async function osrmRoutes(from: LngLat, to: LngLat): Promise<Route[]> {
   const data = await res.json();
   if (data.code !== 'Ok' || !data.routes?.length) throw new Error('No route found between these points');
   return data.routes.map((r: any, i: number) => {
-    const { steps, names } = parseSteps(r.legs?.[0]);
+    const { steps, names, controls } = parseSteps(r.legs?.[0]);
     return {
       id: `osrm-${i}`,
       geometry: r.geometry.coordinates as LngLat[],
@@ -75,6 +91,7 @@ async function osrmRoutes(from: LngLat, to: LngLat): Promise<Route[]> {
       distances: null,
       names,
       steps,
+      controls,
       source: 'osrm' as const,
     };
   });
@@ -98,7 +115,7 @@ async function mapboxRoutes(from: LngLat, to: LngLat, token: string): Promise<Ro
     const leg = r.legs?.[0];
     const ann = leg?.annotation ?? {};
     const typical = typeof r.duration_typical === 'number' ? r.duration_typical : null;
-    const { steps, names } = parseSteps(leg);
+    const { steps, names, controls } = parseSteps(leg);
     return {
       id: `mapbox-${i}-${Date.now()}`,
       geometry: r.geometry.coordinates as LngLat[],
@@ -112,6 +129,7 @@ async function mapboxRoutes(from: LngLat, to: LngLat, token: string): Promise<Ro
       distances: Array.isArray(ann.distance) ? ann.distance : null,
       names,
       steps,
+      controls,
       source: 'mapbox' as const,
     };
   });

@@ -9,6 +9,7 @@ import type { Route } from '../lib/routing';
 import type { Position } from '../lib/alerts';
 import { MIN_FEATURE_ZOOM } from '../hooks/useRoadFeatures';
 import { circle, confidenceText, siteLabel, type CameraData, type CameraSite } from '../lib/cameras';
+import { shortTime, type TrafficStretch } from '../lib/traffic';
 
 // A quiet, greyscale OpenStreetMap base (free, no key) so routes and hazards stand out.
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
@@ -34,6 +35,7 @@ interface Props {
   layers: Layers;
   mapboxToken?: string;
   cameras: CameraData | null;
+  jams: TrafficStretch[]; // slow stretches on the selected route, labelled with their delay
   onViewChange: (bbox: BBox, zoom: number) => void;
   onContextMenu: (lngLat: LngLat) => void;
   onMapClick: (lngLat: LngLat) => void;
@@ -197,7 +199,8 @@ export function MapView(props: Props) {
         id: 'routes-main', type: 'line', source: 'routes', layout: lineLayout, filter: isSel,
         paint: {
           'line-color': ['match', ['get', 'congestion'], 'moderate', '#f5a623', 'heavy', '#e11900', 'severe', '#8a0a00', '#000000'],
-          'line-width': 6,
+          // Slow stretches drawn thicker so short jams are visible from a distance.
+          'line-width': ['match', ['get', 'congestion'], 'moderate', 8, 'heavy', 9, 'severe', 9, 6],
         },
       });
 
@@ -210,6 +213,21 @@ export function MapView(props: Props) {
 
       map.addSource('endpoints', { type: 'geojson', data: empty });
       map.addLayer({ id: 'endpoints', type: 'symbol', source: 'endpoints', layout: { ...symbol, 'icon-size': 0.9 } });
+
+      // "+2 min" labels on jams along the selected route (like Google Maps' delay bubbles).
+      map.addSource('jam-labels', { type: 'geojson', data: empty });
+      map.addLayer({
+        id: 'jam-labels', type: 'symbol', source: 'jam-labels',
+        layout: {
+          'text-field': ['get', 'text'], 'text-size': 12.5, 'text-font': ['Noto Sans Bold'],
+          'text-offset': [0, -1.4], 'text-allow-overlap': true, 'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': ['match', ['get', 'level'], 'moderate', '#d98a00', '#c41600'],
+          'text-halo-width': 4,
+        },
+      });
 
       map.addSource('me', { type: 'geojson', data: empty });
       map.addLayer({ id: 'me-halo', type: 'circle', source: 'me', paint: { 'circle-radius': 26, 'circle-color': '#1a73e8', 'circle-opacity': 0.14, 'circle-pitch-alignment': 'map' } });
@@ -378,6 +396,22 @@ export function MapView(props: Props) {
     const map = mapRef.current;
     if (ready && map?.getLayer('traffic')) map.setLayoutProperty('traffic', 'visibility', layers.traffic ? 'visible' : 'none');
   }, [ready, layers.traffic]);
+
+  // Jam delay labels on the selected route.
+  const { jams } = props;
+  useEffect(() => {
+    if (!ready) return;
+    const r = routes[selectedRoute];
+    set('jam-labels', {
+      type: 'FeatureCollection',
+      features: !r ? [] : jams
+        .filter((j) => j.delayS >= 20 || j.level !== 'moderate')
+        .map((j) => point(r.geometry[Math.floor((j.startIndex + j.endIndex + 1) / 2)], {
+          text: j.delayS >= 20 ? `+${shortTime(j.delayS)}` : shortTime(j.timeS),
+          level: j.level,
+        })),
+    });
+  }, [ready, jams, routes, selectedRoute]);
 
   // Reported camera roads and zones.
   const { cameras } = props;
