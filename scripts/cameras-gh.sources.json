@@ -1,0 +1,400 @@
+{
+  "_about": "TraffiTech-GH camera reports (went live 1 Nov 2026). There is no official list: police say many cameras are in patrol vehicles or on movable tripods. Edit this file and run `node scripts/build-cameras.mjs` to rebuild public/data/cameras-gh.json.",
+  "sources": {
+    "yen-mapped": {
+      "title": "TraffiTech-GH speed camera locations mapped by drivers across Accra and Kumasi (YEN, 2 Nov 2026)",
+      "url": "https://yen.com.gh/ghana/314868-traffitech-gh-speed-camera-locations-mapped-by-drivers-accra-kumasi/"
+    },
+    "yen-regions": {
+      "title": "TraffiTech in Ghana: list of 7 regions with confirmed camera deployments (YEN, 4 Nov 2026)",
+      "url": "https://yen.com.gh/ghana/315081-traffitech-ghana-list-7-regions-confirmed-camera-deployments/"
+    },
+    "pulse-nrsa": {
+      "title": "No speed limit signs, no Traffictech cameras: NRSA clarifies (Pulse, 4 Nov 2026)",
+      "url": "https://www.pulse.com.gh/story/nrsa-traffictech-cameras-speed-limit-signs-2026110413431777476"
+    },
+    "gna-first-day": {
+      "title": "Extreme speeding recorded on first day of TraffiTech deployment (GNA, 2 Nov 2026)",
+      "url": "https://gna.org.gh/2026/11/extreme-speeding-recorded-on-first-day-of-traffitech-deployment/"
+    },
+    "3news-first-days": {
+      "title": "TraffiTech-GH: 130 km/h speeders, unions allege extortion (3News, 4 Nov 2026)",
+      "url": "https://3news.com/news/traffitech-gh-first-days-speeding-extortion-claims"
+    },
+    "police-faq": {
+      "title": "Traffitech-GH (Ghana Police Service)",
+      "url": "https://police.gov.gh/en/index.php/traffitech-gh/"
+    }
+  },
+  "_confidence": {
+    "news": "Named in news reports quoting police/MTTD enforcement results",
+    "crowd": "Reported by drivers on the Glydr and Waze apps (unofficial)"
+  },
+  "sites": [
+    {
+      "id": "liberation-nehru",
+      "name": "Liberation Road at Jawaharlal Nehru Road / Olusegun Obasanjo Highway",
+      "type": "place",
+      "confidence": "crowd",
+      "source": "yen-mapped",
+      "query": "Jawaharlal Nehru Road, Accra",
+      "snapTo": "Liberation Road"
+    },
+    {
+      "id": "boundary-mahama",
+      "name": "Boundary Road towards Mahama Road",
+      "type": "road",
+      "roads": [
+        "Boundary Road"
+      ],
+      "limit": 50,
+      "note": "Drivers recorded above 130 km/h on the first day",
+      "confidence": "news",
+      "source": "pulse-nrsa",
+      "also": [
+        "3news-first-days",
+        "gna-first-day"
+      ],
+      "nearRadius": 2000,
+      "towards": "Mahama Road"
+    },
+    {
+      "id": "densu-bridge",
+      "name": "N1 bridge over the Densu River near Weija Junction",
+      "type": "zone",
+      "query": "Weija Junction, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped",
+      "fallback": "Weija, Accra",
+      "radius": 1200
+    },
+    {
+      "id": "laterbiokorshie-staroil",
+      "name": "Laterbiokorshie, by the Star Oil filling station",
+      "type": "zone",
+      "query": "Star Oil, Laterbiokorshie, Accra",
+      "fallback": "Laterbiokorshie, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped",
+      "radius": 600
+    },
+    {
+      "id": "cantonments-road",
+      "name": "Cantonments Road",
+      "type": "road",
+      "roads": [
+        "Cantonments Road"
+      ],
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "ring-road-nima",
+      "name": "Ring Road near Nima",
+      "type": "road",
+      "roads": [
+        "Ring Road Central",
+        "Ring Road East"
+      ],
+      "near": "Nima, Accra",
+      "nearRadius": 1200,
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "kanda-highway",
+      "name": "Kanda Highway",
+      "type": "road",
+      "query": "Kanda Highway, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "teshie-link",
+      "name": "Teshie Link",
+      "type": "road",
+      "roads": [
+        "Teshie Link Highway"
+      ],
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "liberation-link",
+      "name": "Towards Liberation Link",
+      "type": "road",
+      "roads": [
+        "South Liberation Link"
+      ],
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "mallam-kokrobite",
+      "name": "Mallam to Kokrobite Junction (N1)",
+      "type": "stretch",
+      "road": "Winneba Road",
+      "from": "Mallam Junction, Accra",
+      "to": "Kokrobite Junction, Weija",
+      "confidence": "news",
+      "source": "3news-first-days",
+      "also": [
+        "gna-first-day"
+      ]
+    },
+    {
+      "id": "tollbooth-kasoa",
+      "name": "Toll booth police station towards Kasoa (N1)",
+      "type": "stretch",
+      "road": "Winneba Road",
+      "from": "Weija Junction, Accra",
+      "to": "Kasoa, Central Region",
+      "confidence": "news",
+      "source": "3news-first-days"
+    },
+    {
+      "id": "amanfrom-kasoa-flyover",
+      "name": "Amanfrom and the Kasoa flyover",
+      "type": "zone",
+      "query": "Kasoa Interchange",
+      "fallback": "Kasoa, Central Region",
+      "radius": 1200,
+      "confidence": "news",
+      "source": "3news-first-days",
+      "also": [
+        "gna-first-day"
+      ]
+    },
+    {
+      "id": "apenkwa",
+      "name": "Apenkwa",
+      "type": "zone",
+      "query": "Apenkwa, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "abeka",
+      "name": "Abeka",
+      "type": "zone",
+      "query": "Abeka, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "achimota",
+      "name": "Achimota",
+      "type": "zone",
+      "query": "Achimota, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "abelenkpe",
+      "name": "Abelenkpe",
+      "type": "zone",
+      "query": "Abelenkpe, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "taifa",
+      "name": "Taifa",
+      "type": "zone",
+      "query": "Taifa, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "ofankor",
+      "name": "Ofankor",
+      "type": "zone",
+      "query": "Ofankor, Ga West",
+      "confidence": "crowd",
+      "source": "yen-mapped",
+      "fallback": "Ofankor Barrier"
+    },
+    {
+      "id": "sowutuom",
+      "name": "Sowutuom",
+      "type": "zone",
+      "query": "Sowutuom, Ga Central",
+      "confidence": "crowd",
+      "source": "yen-mapped",
+      "radius": 1500
+    },
+    {
+      "id": "pillar-2",
+      "name": "Pillar 2",
+      "type": "zone",
+      "query": "Pillar 2, Accra",
+      "fallback": "Pillar Two, Accra",
+      "limit": 50,
+      "note": "30 and 50 km/h signs reported",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "haatso",
+      "name": "Haatso",
+      "type": "zone",
+      "query": "Haatso, Accra",
+      "limit": 50,
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "papao",
+      "name": "Papao",
+      "type": "zone",
+      "query": "Papao, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "madina",
+      "name": "Madina",
+      "type": "zone",
+      "query": "Madina, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "dzorwulu",
+      "name": "Dzorwulu and North Dzorwulu",
+      "type": "zone",
+      "query": "Dzorwulu, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped",
+      "radius": 1000
+    },
+    {
+      "id": "east-legon",
+      "name": "East Legon",
+      "type": "zone",
+      "query": "East Legon, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "shiashie",
+      "name": "Shiashie",
+      "type": "zone",
+      "query": "Shiashie, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "bawaleshie",
+      "name": "Bawaleshie",
+      "type": "zone",
+      "query": "Bawaleshie, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "ogbojo",
+      "name": "Ogbojo",
+      "type": "zone",
+      "query": "Ogbojo, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "adjiringanor",
+      "name": "Towards Adjiringanor",
+      "type": "zone",
+      "query": "Adjiringanor, Accra",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "kumasi-bomso",
+      "name": "Bomso, Kumasi",
+      "type": "zone",
+      "query": "Bomso, Kumasi",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "kumasi-ayigya",
+      "name": "Ayigya, Kumasi",
+      "type": "zone",
+      "query": "Ayigya, Kumasi",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "kumasi-kentinkrono",
+      "name": "Kentinkrono, Kumasi",
+      "type": "zone",
+      "query": "Kentinkrono, Kumasi",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "kumasi-anwiankwanta",
+      "name": "Anwiankwanta, Kumasi",
+      "type": "zone",
+      "query": "Anwiankwanta, Ashanti",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "kumasi-asokwa",
+      "name": "Asokwa, Kumasi",
+      "type": "zone",
+      "query": "Asokwa, Kumasi",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "kumasi-asokore-mampong",
+      "name": "Asokore Mampong, Kumasi",
+      "type": "zone",
+      "query": "Asokore Mampong, Ashanti",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    },
+    {
+      "id": "kumasi-ayeduase",
+      "name": "Ayeduase (near KNUST), Kumasi",
+      "type": "zone",
+      "query": "Ayeduase, Kumasi",
+      "confidence": "crowd",
+      "source": "yen-mapped"
+    }
+  ],
+  "notPlaced": [
+    {
+      "id": "school-junction-motorway",
+      "name": "Boteyman: School Junction towards the Motorway",
+      "source": "3news-first-days",
+      "reason": "Could not confirm where this School Junction is (lookups land in Mamprobi, far from the Motorway)"
+    },
+    {
+      "id": "north-dzorwulu",
+      "name": "North Dzorwulu",
+      "source": "yen-mapped",
+      "reason": "Merged into Dzorwulu"
+    },
+    {
+      "id": "kumasi-nsenie",
+      "name": "Nsenie, Kumasi",
+      "source": "yen-mapped",
+      "reason": "Lookup lands in central Adum, not the south-east the report describes"
+    },
+    {
+      "id": "kumasi-adukrom",
+      "name": "Side roads off the N6 towards Adukrom, Kumasi",
+      "source": "yen-mapped",
+      "reason": "Lookup lands at Kumasi airport, not on the N6 side roads described"
+    },
+    {
+      "id": "obasanjo-liberation",
+      "name": "Olusegun Obasanjo Highway at Liberation Road end",
+      "source": "yen-mapped",
+      "reason": "Same spot as the Liberation Road / Jawaharlal Nehru Road report (30 m apart); merged"
+    }
+  ]
+}
