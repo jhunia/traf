@@ -632,6 +632,20 @@ export default function App() {
             <Icon name="search" />
             <span>Where to?</span>
           </button>
+          {!hasFix && gps.status !== 'waiting' && (
+            <div className="loc-card">
+              <span className="place-ic place-ic-blue"><Icon name="locate" size={18} /></span>
+              <div className="loc-txt">
+                <strong>Location is off</strong>
+                <span>{gps.error}</span>
+              </div>
+              {gps.status !== 'insecure' && gps.status !== 'unsupported' && (
+                <button className="btn btn-black loc-btn" onClick={() => gps.retry()}>
+                  Turn on
+                </button>
+              )}
+            </div>
+          )}
           {recents.length > 0 ? (
             <ul className="home-list">
               {recents.slice(0, 3).map((r) => (
