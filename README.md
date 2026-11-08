@@ -16,6 +16,19 @@ npm run fast           # optimised build at http://localhost:4173 — smoother f
 
 Other cities: `node scripts/fetch-osm.mjs kumasi` or `node scripts/fetch-osm.mjs takoradi`.
 
+## Host it on Vercel (needed to drive with real GPS on a phone)
+
+Phones only share GPS with sites on **https**, so test real drives from the Vercel link, not `http://<your-PC>:5173`.
+
+1. Go to [vercel.com](https://vercel.com), sign up with GitHub, then **Add New → Project** and import `jhunia/traf`.
+2. Vercel detects **Vite**. Keep the defaults: build `npm run build`, output `dist`.
+3. Under **Environment Variables**, add `VITE_MAPBOX_TOKEN` = your Mapbox `pk.` token, for all environments.
+4. Click **Deploy**. You get a link like `https://traf-xxxx.vercel.app`. Every `git push` to `main` redeploys automatically.
+5. In your Mapbox account, open the token's **URL restrictions** and add your Vercel domain, so nobody else can use the token.
+6. Open the link on your phone and allow location when asked. On Android Chrome you can **Add to Home screen** for a full-screen app.
+
+If you change `VITE_MAPBOX_TOKEN` later, redeploy (Deployments → ⋯ → Redeploy), because the token is baked in at build time.
+
 ## Using it
 
 - **Plan a trip:** tap **Where to?**, then search, pick a recent place, or choose **Set location on map**. On desktop you can also right-click the map. You get up to 3 routes. The selected one is drawn black, turning amber or red where traffic is slow, and the extra time from traffic is shown in red.

@@ -6,7 +6,7 @@ import { AlertBanner } from './components/AlertBanner';
 import { LayersMenu } from './components/LayersMenu';
 import { TripBar } from './components/TripBar';
 import { Icon } from './components/Icon';
-import { useGps } from './hooks/useGps';
+import { GPS_HELP, useGps, type GpsStatus } from './hooks/useGps';
 import { useSimulation } from './hooks/useSimulation';
 import { useSpeedLimit } from './hooks/useSpeedLimit';
 import { useRoadFeatures } from './hooks/useRoadFeatures';
@@ -79,6 +79,9 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
 
   const gps = useGps(true);
+  const hasFix = !!gps.position;
+  const gpsStatusRef = useRef(gps.status);
+  gpsStatusRef.current = gps.status;
   const region = useRegionData();
   const [cameras, setCameras] = useState<CameraData | null>(null);
   useEffect(() => {
@@ -123,8 +126,11 @@ export default function App() {
     }
     const start = origin?.lngLat ?? gpsRef.current?.lngLat ?? null;
     if (!start) {
+      // Starting from "my location" but no fix yet: wait (this effect re-runs when the first fix arrives).
       setRoutes([]);
-      setRouteError('Choose a starting point. Location access is off.');
+      const waiting = gpsStatusRef.current === 'waiting' || gpsStatusRef.current === 'unavailable';
+      setRouting(waiting);
+      setRouteError(waiting ? null : GPS_HELP[gpsStatusRef.current as Exclude<GpsStatus, 'ok'>]);
       return;
     }
     let cancelled = false;
@@ -147,7 +153,8 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [origin, destination]);
+    // Re-run once when the first GPS fix arrives, or when location gets blocked, if routing from "my location".
+  }, [origin, destination, origin ? 'typed' : hasFix ? 'fix' : gps.status]);
 
   useEffect(() => {
     if (routeLine) loadAlongRoute(routeLine);
@@ -370,9 +377,17 @@ export default function App() {
 
   const startDrive = (mode: DriveMode) => {
     if (mode === 'gps' && !gps.position) {
-      setToast('No GPS signal. Try Test drive instead.');
+      if (gps.status === 'insecure' || gps.status === 'unsupported') {
+        setToast(GPS_HELP[gps.status]);
+        return;
+      }
+      // Wait for the first fix and start automatically (like other nav apps), instead of refusing.
+      if (gps.status === 'denied') gps.retry();
+      setPendingStart(true);
+      setToast(gps.status === 'denied' ? GPS_HELP.denied : 'Getting your GPS fix… navigation will start automatically.');
       return;
     }
+    setPendingStart(false);
     setDrive(mode);
     setFollow(true);
     announced.current.clear();
@@ -393,6 +408,17 @@ export default function App() {
     }
     if (!muted) speak(`${mode === 'sim' ? 'Starting test drive.' : 'Starting route.'} ${first ? sentence(first) : ''}`);
   };
+
+  // Start pressed before GPS was ready: begin as soon as the first fix arrives.
+  const [pendingStart, setPendingStart] = useState(false);
+  const startRef = useRef(startDrive);
+  startRef.current = startDrive;
+  useEffect(() => {
+    if (pendingStart && gps.position && routes.length) startRef.current('gps');
+  }, [pendingStart, gps.position, routes.length]);
+  useEffect(() => {
+    if (!destination) setPendingStart(false);
+  }, [destination]);
 
   const clearTrip = () => {
     setDestination(null);
@@ -533,6 +559,7 @@ export default function App() {
             </button>
           </div>
 
+          {routing && !origin && !hasFix && <p className="route-note">Getting your location to plan the route…</p>}
           {routing && (
             <div className="route-list">
               <div className="route-row skeleton" />
@@ -581,8 +608,16 @@ export default function App() {
                 <p className="route-note">Typical times, without live traffic.</p>
               )}
               <div className="sheet-actions">
-                <button className="btn btn-black" onClick={() => startDrive('gps')}>
-                  <Icon name="nav" size={18} /> Start
+                <button className="btn btn-black" onClick={() => startDrive('gps')} disabled={pendingStart && !hasFix}>
+                  {pendingStart && !hasFix ? (
+                    <>
+                      <span className="spinner spinner-light" /> Waiting for GPS…
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="nav" size={18} /> Start
+                    </>
+                  )}
                 </button>
                 <button className="btn btn-grey" onClick={() => startDrive('sim')}>Test drive</button>
               </div>
