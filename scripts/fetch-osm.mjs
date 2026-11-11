@@ -87,8 +87,7 @@ if (region === 'places') {
       else {
         part = await overpass(
           `[out:json][timeout:180];
-area["ISO3166-1"="GH"][admin_level=2]->.gh;
-node["place"~"^(city|town|village)$"](area.gh)(${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});
+node["place"~"^(city|town|village)$"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});
 out body;`,
           label,
         );
