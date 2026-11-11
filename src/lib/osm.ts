@@ -1,7 +1,6 @@
 // Live OpenStreetMap data through the Overpass API: cameras, speed bumps,
 // road signs, potholes, and roads with their speed limits.
 import { bboxOf, type BBox, type LngLat } from './geo';
-import { DEFAULT_LIMITS } from './ghana';
 
 // Public Overpass servers are often slow or unreachable from some networks, so we
 // try several, remember the one that worked, and send one query at a time.
@@ -153,35 +152,33 @@ function elementsToFeatures(elements: any[]): RoadFeature[] {
   return out;
 }
 
-export interface RegionData {
-  bbox: BBox;
-  features: RoadFeature[];
-  roads: Road[];
-  fetchedAt: string;
-}
-
-/** Loads a region downloaded by scripts/fetch-osm.mjs. Returns null if it has not been downloaded. */
-export async function loadRegionData(region: string): Promise<RegionData | null> {
+/** A downloaded hazards file: the area it covers and its features. Null if it has not been downloaded. */
+export async function loadFeaturesFile(name: string): Promise<{ bbox: BBox; features: RoadFeature[] } | null> {
   try {
-    const [f, r] = await Promise.all([
-      fetch(`/data/${region}-features.json`).then((res) => (res.ok ? res.json() : null)),
-      fetch(`/data/${region}-roads.json`).then((res) => (res.ok ? res.json() : null)),
-    ]);
-    if (!f || !r) return null;
+    const res = await fetch(`/data/${name}-features.json`);
+    if (!res.ok) return null;
+    const f = await res.json();
     const [s, w, n, e] = f.bbox as number[]; // stored as south, west, north, east
-    const roads: Road[] = r.roads.map((x: any) => {
-      const geometry: LngLat[] = [];
-      for (let i = 0; i < x.g.length; i += 2) geometry.push([x.g[i], x.g[i + 1]]);
-      return makeRoad({ id: x.id, name: x.n, highway: x.h, maxspeed: parseMaxspeed(x.m), geometry });
-    });
-    return { bbox: [w, s, e, n], features: elementsToFeatures(f.elements), roads, fetchedAt: f.fetchedAt };
+    return { bbox: [w, s, e, n], features: elementsToFeatures(f.elements) };
   } catch {
     return null;
   }
 }
 
-function makeRoad(r: Omit<Road, 'bbox'>): Road {
-  return { ...r, bbox: bboxOf(r.geometry) };
+/** A downloaded city road file (roads with their recorded speed limits). Null if it has not been downloaded. */
+export async function loadRoadsFile(name: string): Promise<Road[] | null> {
+  try {
+    const res = await fetch(`/data/${name}-roads.json`);
+    if (!res.ok) return null;
+    const r = await res.json();
+    return r.roads.map((x: any) => {
+      const geometry: LngLat[] = [];
+      for (let i = 0; i < x.g.length; i += 2) geometry.push([x.g[i], x.g[i + 1]]);
+      return { id: x.id, name: x.n, highway: x.h, maxspeed: parseMaxspeed(x.m), geometry, bbox: bboxOf(geometry) };
+    });
+  } catch {
+    return null;
+  }
 }
 
 export function parseMaxspeed(v?: string): number | undefined {
@@ -190,32 +187,4 @@ export function parseMaxspeed(v?: string): number | undefined {
   if (!m) return undefined;
   const n = parseFloat(m[1]);
   return m[2]?.toLowerCase() === 'mph' ? Math.round(n * 1.609) : n;
-}
-
-const DRIVABLE =
-  '^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$';
-
-export async function fetchRoads(area: Area): Promise<Road[]> {
-  const query = `[out:json][timeout:25];
-way["highway"~"${DRIVABLE}"]${areaFilter(area)};
-out tags geom;`;
-  const data = await overpass(query);
-  return (data.elements ?? [])
-    .filter((el: any) => Array.isArray(el.geometry) && el.geometry.length > 1)
-    .map((el: any) =>
-      makeRoad({
-        id: el.id,
-        name: el.tags?.name ?? el.tags?.ref,
-        highway: el.tags?.highway ?? 'road',
-        maxspeed: parseMaxspeed(el.tags?.maxspeed),
-        geometry: el.geometry.map((g: any) => [g.lon, g.lat] as LngLat),
-      }),
-    );
-}
-
-/** Speed limit for a road, and whether it is a fallback estimate. */
-export function limitFor(road: Road): { limit: number | null; estimated: boolean } {
-  if (road.maxspeed) return { limit: road.maxspeed, estimated: false };
-  const d = DEFAULT_LIMITS[road.highway];
-  return { limit: d ?? null, estimated: true };
 }

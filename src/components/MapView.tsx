@@ -56,11 +56,31 @@ function featurePoints(list: RoadFeature[], layers: Layers): GeoJSON.FeatureColl
     type: 'FeatureCollection',
     features: list
       .filter((f) => layers[f.kind])
-      .map((f) => point(f.lngLat, { id: f.id, icon: f.icon, label: f.label, source: f.source })),
+      .map((f) =>
+        point(f.lngLat, {
+          id: f.id,
+          icon: f.icon,
+          label: f.label,
+          source: f.source,
+          kind: f.kind,
+          from: f.source === 'user' ? 'Reported by you' : f.id.startsWith('tt-') ? 'Reported camera site (unofficial)' : f.id.startsWith('mb-') ? 'From Mapbox' : 'From OpenStreetMap',
+        }),
+      ),
   };
 }
 
 const isNarrow = (map: MLMap) => map.getContainer().clientWidth < 720;
+
+// Remember where the map was, so the app reopens where the driver left it.
+const VIEW_KEY = 'roadwise.view.v1';
+function savedView(): { center: LngLat; zoom: number } | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? 'null');
+    return v && Number.isFinite(v.zoom) && Array.isArray(v.center) && v.center.every(Number.isFinite) ? v : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Popup for a reported camera road/zone: what, how reliable, the limit, and links to the sources. */
 function cameraPopup(site: CameraSite, data: CameraData): HTMLElement {
@@ -97,16 +117,27 @@ export function MapView(props: Props) {
   const mapRef = useRef<MLMap | null>(null);
   const [ready, setReady] = useState(false);
   const lastFix = useRef<number | null>(null);
+  const hadFix = useRef(false);
   const latest = useRef(props);
   latest.current = props;
 
   // Create the map once.
   useEffect(() => {
+    const saved = savedView();
+    const [bw, bs, be, bn] = REGION.bounds;
     const map = new maplibregl.Map({
       container: container.current!,
       style: STYLE_URL,
-      center: REGION.center,
-      zoom: REGION.zoom,
+      // Reopen where the driver left off; first time, show the whole country.
+      ...(saved
+        ? { center: saved.center, zoom: saved.zoom }
+        : {
+            bounds: [[bw, bs], [be, bn]] as [LngLat, LngLat],
+            // Keep the country clear of the bottom sheet (phones) or the side panel (wide screens).
+            fitBoundsOptions: {
+              padding: container.current!.clientWidth < 720 ? { top: 20, bottom: 300, left: 16, right: 16 } : { top: 30, bottom: 30, left: 440, right: 30 },
+            },
+          }),
       attributionControl: { compact: true },
       maxPitch: 60,
     });
@@ -115,6 +146,14 @@ export function MapView(props: Props) {
     const emitView = () => {
       const b = map.getBounds();
       latest.current.onViewChange([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], map.getZoom());
+      if (!latest.current.driving) {
+        try {
+          const c = map.getCenter();
+          localStorage.setItem(VIEW_KEY, JSON.stringify({ center: [c.lng, c.lat], zoom: map.getZoom() }));
+        } catch {
+          /* storage blocked */
+        }
+      }
     };
 
     map.on('load', () => {
@@ -158,22 +197,42 @@ export function MapView(props: Props) {
 
       // Reported TraffiTech camera areas (soft red circles) and roads (red dashes), under the route.
       map.addSource('cam-zones', { type: 'geojson', data: empty });
-      map.addLayer({ id: 'cam-zones', type: 'fill', source: 'cam-zones', paint: { 'fill-color': '#e11900', 'fill-opacity': 0.07 } });
+      map.addLayer({ id: 'cam-zones', type: 'fill', source: 'cam-zones', minzoom: 10, paint: { 'fill-color': '#e11900', 'fill-opacity': 0.05 } });
       map.addLayer({
-        id: 'cam-zones-edge', type: 'line', source: 'cam-zones',
-        paint: { 'line-color': '#e11900', 'line-opacity': 0.45, 'line-width': 1.5, 'line-dasharray': [2, 2] },
+        id: 'cam-zones-edge', type: 'line', source: 'cam-zones', minzoom: 10,
+        paint: { 'line-color': '#e11900', 'line-opacity': 0.35, 'line-width': 1.2, 'line-dasharray': [2, 2] },
       });
       map.addSource('cam-roads', { type: 'geojson', data: empty });
       map.addLayer({
         id: 'cam-roads', type: 'line', source: 'cam-roads', layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#e11900', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2, 16, 6], 'line-opacity': 0.75, 'line-dasharray': [1.5, 1.5] },
       });
+      // Say what the red dashes are, right on the road.
       map.addLayer({
-        id: 'cam-zone-labels', type: 'symbol', source: 'cam-zones', minzoom: 12,
-        layout: { 'text-field': ['concat', 'Camera area: ', ['get', 'name']], 'text-size': 11, 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': false },
+        id: 'cam-road-labels', type: 'symbol', source: 'cam-roads', minzoom: 13,
+        layout: {
+          'symbol-placement': 'line', 'symbol-spacing': 320,
+          'text-field': 'Speed cameras reported', 'text-size': 11, 'text-font': ['Noto Sans Bold'],
+          'text-keep-upright': true, 'text-offset': [0, -0.9],
+        },
+        paint: { 'text-color': '#b51500', 'text-halo-color': '#fff', 'text-halo-width': 2 },
+      });
+      map.addLayer({
+        id: 'cam-zone-labels', type: 'symbol', source: 'cam-zones', minzoom: 13,
+        layout: { 'text-field': ['concat', 'Cameras reported: ', ['get', 'name']], 'text-size': 11, 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': false },
         paint: { 'text-color': '#b51500', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
       });
-      for (const layer of ['cam-zones', 'cam-roads']) {
+      // Country view: the cities where police confirm cameras operate.
+      map.addSource('cam-cities', { type: 'geojson', data: empty });
+      map.addLayer({
+        id: 'cam-cities', type: 'symbol', source: 'cam-cities', maxzoom: 10,
+        layout: {
+          'icon-image': 'rw-camera', 'icon-size': 0.55, 'icon-allow-overlap': true,
+          'text-field': ['get', 'name'], 'text-size': 11.5, 'text-font': ['Noto Sans Bold'], 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-optional': true,
+        },
+        paint: { 'text-color': '#b51500', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
+      });
+      for (const layer of ['cam-zones', 'cam-roads', 'cam-cities']) {
         map.on('click', layer, (e) => {
           const p = e.features?.[0]?.properties as { id: string } | undefined;
           const site = latest.current.cameras?.sites.find((s) => s.id === p?.id);
@@ -204,9 +263,15 @@ export function MapView(props: Props) {
         },
       });
 
-      const symbol = { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': 0.85 } as any;
+      const symbol = {
+        'icon-image': ['get', 'icon'], 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.7, 16, 0.9],
+      } as any;
       map.addSource('features', { type: 'geojson', data: empty });
-      map.addLayer({ id: 'features', type: 'symbol', source: 'features', minzoom: MIN_FEATURE_ZOOM - 1, layout: symbol });
+      // Cameras show from far out; bumps and potholes at street level; signs and lights only when close.
+      map.addLayer({ id: 'features-sign', type: 'symbol', source: 'features', minzoom: 14.5, filter: ['==', ['get', 'kind'], 'sign'], layout: symbol });
+      map.addLayer({ id: 'features-hazard', type: 'symbol', source: 'features', minzoom: MIN_FEATURE_ZOOM, filter: ['in', ['get', 'kind'], ['literal', ['bump', 'pothole']]], layout: symbol });
+      map.addLayer({ id: 'features-camera', type: 'symbol', source: 'features', minzoom: 10, filter: ['==', ['get', 'kind'], 'camera'], layout: symbol });
       map.addSource('reports', { type: 'geojson', data: empty });
       map.addLayer({ id: 'reports-halo', type: 'circle', source: 'reports', paint: { 'circle-radius': 19, 'circle-color': '#8e24aa', 'circle-opacity': 0.25 } });
       map.addLayer({ id: 'reports', type: 'symbol', source: 'reports', layout: symbol });
@@ -250,18 +315,18 @@ export function MapView(props: Props) {
       map.on('mouseenter', 'routes-alt', () => (map.getCanvas().style.cursor = 'pointer'));
       map.on('mouseleave', 'routes-alt', () => (map.getCanvas().style.cursor = ''));
 
-      for (const layer of ['features', 'reports']) {
+      for (const layer of ['features-sign', 'features-hazard', 'features-camera', 'reports']) {
         map.on('click', layer, (e) => {
           const f = e.features?.[0];
           if (!f) return;
-          const p = f.properties as { id: string; label: string; source: string };
+          const p = f.properties as { id: string; label: string; source: string; from: string };
           const el = document.createElement('div');
           el.className = 'popup';
           const title = document.createElement('strong');
           title.textContent = p.label;
           const meta = document.createElement('div');
           meta.className = 'popup-meta';
-          meta.textContent = p.source === 'user' ? 'Reported by you' : 'From OpenStreetMap';
+          meta.textContent = p.from;
           el.append(title, meta);
           const popup = new maplibregl.Popup({ offset: 14, closeButton: false })
             .setLngLat((f.geometry as GeoJSON.Point).coordinates as LngLat)
@@ -362,6 +427,14 @@ export function MapView(props: Props) {
     );
     if (!position || !follow) return;
     const map = mapRef.current!;
+    if (!driving && routes.length) return; // looking at route options: don't drag the map back to the car
+    if (!driving && !hadFix.current) {
+      // First GPS fix: go to the driver, wherever in the country they are.
+      hadFix.current = true;
+      map.flyTo({ center: position.lngLat, zoom: Math.max(map.getZoom(), 14.5), duration: 1200 });
+      return;
+    }
+    hadFix.current = true;
     if (driving) {
       // Navigation camera: tilted, heading-up, car in the lower part of the screen.
       // Animate for exactly the time until the next position arrives, at constant speed,
@@ -376,7 +449,8 @@ export function MapView(props: Props) {
         center: position.lngLat,
         bearing: target,
         pitch: 50,
-        zoom: 16.5,
+        // Zoom out a little at speed so the driver sees further ahead on highways.
+        zoom: 16.8 - Math.min(1.6, (position.speedKmh ?? 0) / 70),
         padding: { top: isNarrow(map) ? 260 : 200, bottom: 0, left: 0, right: 0 },
         duration: Math.min(1200, Math.max(300, gap)),
         easing: (t) => t,
@@ -384,7 +458,7 @@ export function MapView(props: Props) {
     } else {
       map.easeTo({ center: position.lngLat, duration: 450 });
     }
-  }, [ready, position, follow, driving]);
+  }, [ready, position, follow, driving, routes.length]);
 
   // Leaving drive mode: flatten the camera again.
   useEffect(() => {
@@ -433,6 +507,10 @@ export function MapView(props: Props) {
         geometry: { type: 'MultiLineString', coordinates: (s as { lines: LngLat[][] }).lines },
         properties: { id: s.id, name: s.name },
       })),
+    });
+    set('cam-cities', {
+      type: 'FeatureCollection',
+      features: sites.filter((s) => s.kind === 'city').map((s) => point((s as { lngLat: LngLat }).lngLat, { id: s.id, name: s.name })),
     });
   }, [ready, cameras, layers.camera]);
 

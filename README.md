@@ -9,12 +9,25 @@ Phase 1 of the [project plan](https://claude.ai/artifact/EePbMjCNJwZFDqGRj2wCzC)
 ```bash
 npm install
 cp .env.example .env   # then paste your Mapbox public token (pk.…)
-npm run fetch-data     # one-off: downloads Greater Accra road data (5–20 min, resumable)
+node scripts/fetch-osm.mjs ghana    # one-off: hazards for the whole country (10-30 min, resumable)
 npm run dev            # open http://localhost:5173 (dev mode, slower)
 npm run fast           # optimised build at http://localhost:4173 — smoother for test drives
 ```
 
-Other cities: `node scripts/fetch-osm.mjs kumasi` or `node scripts/fetch-osm.mjs takoradi`.
+Optional extras (all resumable if a server fails):
+- `node scripts/fetch-osm.mjs places` downloads where Ghana's towns are, which sharpens speed limits when driving without a route.
+- `node scripts/fetch-osm.mjs accra` (also `kumasi`, `takoradi` or `tamale`) downloads a city's roads with their recorded speed limits.
+- `node scripts/build-cameras.mjs` rebuilds the camera map from `scripts/cameras-gh.sources.json`.
+
+## Works across Ghana
+
+| What | How it covers the whole country |
+| --- | --- |
+| Map, search, routes, live traffic | Mapbox and OpenStreetMap cover all of Ghana. Search offers quick picks for 12 major cities |
+| Speed limits | 1. Mapbox's recorded limit for the stretch you're on. 2. OpenStreetMap's limit (downloaded cities). 3. Without a route: Mapbox matches your GPS trace to the road. 4. Otherwise Ghana's legal defaults, shown as **est**: 50 km/h built-up, 90 km/h highway, 100 km/h motorway, 30 km/h residential |
+| Speed bumps, traffic lights, signs | Downloaded for the whole country (`ghana-features.json`). Live map-data queries are only used where nothing is downloaded |
+| Speed cameras | Exact reported sites in Accra and Kumasi, plus the 8 cities where police confirm TraffiTech cameras operate (Accra, Tema, Kumasi, Takoradi, Sunyani, Tamale, Koforidua, Ho). Entering one is announced, and routes through them are flagged |
+| Long trips | Trip time range shows hours; zoom eases out at highway speed
 
 ## Host it on Vercel (needed to drive with real GPS on a phone)
 

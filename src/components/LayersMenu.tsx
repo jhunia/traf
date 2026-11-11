@@ -54,8 +54,17 @@ export function LayersMenu({ layers, onChange, hasTraffic }: Props) {
               Traffic
             </button>
           </div>
+          <div className="legend">
+            <h4>What you see on the map</h4>
+            <div className="legend-row"><span className="lg-route" /> Your route: amber or red where traffic is slow</div>
+            <div className="legend-row"><span className="lg-jam">+2 min</span> Extra time a jam adds to your trip</div>
+            <div className="legend-row"><span className="lg-traffic" /> Live traffic: green flowing, amber slow, red jammed</div>
+            <div className="legend-row"><span className="lg-camroad" /> Road where speed cameras are reported</div>
+            <div className="legend-row"><span className="lg-camzone" /> Area where speed cameras are reported</div>
+            <div className="legend-row"><span className="lg-est">est</span> Speed limit is Ghana's default for the road, not a recorded sign</div>
+          </div>
           <p className="popover-foot">
-            {hasTraffic ? 'Live traffic from Mapbox: amber = slow, red = heavy.' : 'Live traffic needs a Mapbox token in .env.'} Purple ring = your reports.
+            {hasTraffic ? '' : 'Live traffic needs a Mapbox token. '}A purple ring marks hazards you reported. Tap any icon, dashed road or circle for details.
           </p>
         </div>
       )}

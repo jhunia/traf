@@ -1,15 +1,25 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { angleDiff, bearing, distance, nearestOnLine, simplify, type LngLat } from '../lib/geo';
-import { fetchRoads, limitFor, type RegionData, type Road } from '../lib/osm';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { angleDiff, bearing, distance, nearestOnLine, type LngLat } from '../lib/geo';
+import { estimateLimit } from '../lib/ghana';
+import type { Road } from '../lib/osm';
+import { isBuiltUp, type Places } from '../lib/places';
 import type { Position } from '../lib/alerts';
-import type { Route } from '../lib/routing';
+import { toKmh, type Route } from '../lib/routing';
+
+export interface SpeedLimitInfo {
+  roadName: string | null;
+  limit: number | null;
+  /** True when no posted limit is recorded and we applied Ghana's default for this kind of road. */
+  estimated: boolean;
+  source: 'mapbox' | 'osm' | 'estimate';
+}
 
 const MATCH_RADIUS = 40; // metres: farther than this from any road = not on a known road
 const MARGIN = 0.0005; // ~55 m in degrees, for the quick bounding-box check
 
-function matchRoad(pos: Position, roads: Road[]): { road: Road; dist: number } | null {
+function matchRoad(pos: Position, roads: Road[]): Road | null {
   const [x, y] = pos.lngLat;
-  let best: { road: Road; dist: number; score: number } | null = null;
+  let best: { road: Road; score: number } | null = null;
   for (const road of roads) {
     const [w, s, e, n] = road.bbox;
     if (x < w - MARGIN || x > e + MARGIN || y < s - MARGIN || y > n + MARGIN) continue;
@@ -22,88 +32,120 @@ function matchRoad(pos: Position, roads: Road[]): { road: Road; dist: number } |
       const diff = angleDiff(seg, pos.heading);
       if (Math.min(diff, 180 - diff) > 40) score += 25;
     }
-    if (!best || score < best.score) best = { road, dist: m.dist, score };
+    if (!best || score < best.score) best = { road, score };
   }
-  return best;
+  return best?.road ?? null;
 }
 
-export interface SpeedLimitInfo {
-  roadName: string | null;
-  highway: string | null;
+// ---- Driving without a route: ask Mapbox which road the last few GPS points are on ----
+
+interface Matched {
+  at: LngLat;
+  time: number;
   limit: number | null;
-  estimated: boolean;
-  source: 'mapbox' | 'osm' | 'estimate';
+  cls: string | null;
+  urban: boolean;
+  name: string | null;
+}
+
+async function matchTrace(pts: LngLat[], token: string): Promise<Omit<Matched, 'at' | 'time'> | null> {
+  const coords = pts.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join(';');
+  const url =
+    `https://api.mapbox.com/matching/v5/mapbox/driving/${coords}` +
+    `?annotations=maxspeed&overview=full&geometries=geojson&steps=true&tidy=true&access_token=${encodeURIComponent(token)}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+  const m = data.matchings?.[data.matchings.length - 1];
+  const leg = m?.legs?.[m.legs.length - 1];
+  if (!leg) return null;
+  const speeds: unknown[] = leg.annotation?.maxspeed ?? [];
+  const junctions = (leg.steps ?? []).flatMap((s: any) => s.intersections ?? []).filter((x: any) => x.mapbox_streets_v8?.class);
+  const lastJ = junctions[junctions.length - 1];
+  const names = (leg.steps ?? []).map((s: any) => s.name).filter(Boolean);
+  return {
+    limit: toKmh(speeds[speeds.length - 1]),
+    cls: lastJ?.mapbox_streets_v8.class ?? null,
+    urban: lastJ?.is_urban === true,
+    name: names[names.length - 1] ?? null,
+  };
+}
+
+/** Throttled: at most one request every 12 s and 150 m, only while moving. */
+function useMapMatch(position: Position | null, enabled: boolean, token?: string): Matched | null {
+  const [matched, setMatched] = useState<Matched | null>(null);
+  const trace = useRef<LngLat[]>([]);
+  const last = useRef<{ at: LngLat; time: number } | null>(null);
+  const busy = useRef(false);
+
+  useEffect(() => {
+    if (!position || position.simulated) return;
+    const t = trace.current;
+    const prev = t[t.length - 1];
+    if (prev && distance(prev, position.lngLat) > 500) t.length = 0; // GPS jumped: start a new trace
+    if (!prev || distance(prev, position.lngLat) >= 25) {
+      t.push(position.lngLat);
+      if (t.length > 6) t.shift();
+    }
+    if (!enabled || !token || busy.current || t.length < 3 || (position.speedKmh ?? 0) < 10) return;
+    const now = Date.now();
+    if (last.current && (now - last.current.time < 12000 || distance(last.current.at, position.lngLat) < 150)) return;
+    busy.current = true;
+    last.current = { at: position.lngLat, time: now };
+    const at = position.lngLat;
+    matchTrace(t.slice(), token)
+      .then((r) => r && setMatched({ ...r, at, time: Date.now() }))
+      .catch(() => undefined)
+      .finally(() => (busy.current = false));
+  }, [position, enabled, token]);
+
+  return matched;
 }
 
 /**
- * The speed limit where the car is. On a Mapbox route we use Mapbox's per-segment limit;
- * otherwise we match the car to an OpenStreetMap road (tagged limit, or an estimate by road type).
+ * The speed limit where the car is, anywhere in Ghana. In order of trust:
+ * 1. the limit Mapbox records for this stretch of the route
+ * 2. the limit OpenStreetMap records for this road (downloaded cities)
+ * 3. off-route: the limit Mapbox records for the road the GPS trace matches
+ * 4. an estimate: Ghana's default for this kind of road, built-up or not (shown as "est")
  */
 export function useSpeedLimit(
   position: Position | null,
   route: Route | null,
-  regions: RegionData[],
+  roads: Road[],
+  places: Places | null,
+  mapboxToken?: string,
 ): SpeedLimitInfo | null {
-  const routeLine = route?.geometry ?? null;
-  const [roads, setRoads] = useState<Map<number, Road>>(new Map());
-  const fetchedAt = useRef<LngLat | null>(null);
-  const loading = useRef(false);
-
-  const merge = useCallback((list: Road[]) => {
-    setRoads((prev) => {
-      const next = new Map(prev);
-      list.forEach((r) => next.set(r.id, r));
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    regions.forEach((r) => merge(r.roads));
-  }, [regions, merge]);
-
-  // Pre-load all roads along a chosen route (incl. small streets), so limits work with a weak signal.
-  // Not needed when the route already carries speed limits (Mapbox).
-  const needRoads = !!routeLine && !route?.maxspeeds;
-  useEffect(() => {
-    if (!routeLine || !needRoads) return;
-    let cancelled = false;
-    fetchRoads({ type: 'around', points: simplify(routeLine, 120), radius: 30 })
-      .then((r) => !cancelled && merge(r))
-      .catch((e) => console.warn('Could not load roads along route', e));
-    return () => {
-      cancelled = true;
-    };
-  }, [routeLine, needRoads, merge]);
-
-  const roadList = useMemo(() => [...roads.values()], [roads]);
-  const match = useMemo(() => (position ? matchRoad(position, roadList) : null), [position, roadList]);
-
-  // Not on any known road: fetch the roads around the car.
-  useEffect(() => {
-    if (!position || loading.current || match) return;
-    if (fetchedAt.current && distance(fetchedAt.current, position.lngLat) < 250) return;
-    loading.current = true;
-    fetchedAt.current = position.lngLat;
-    fetchRoads({ type: 'around', points: [position.lngLat], radius: 400 })
-      .then(merge)
-      .catch((e) => console.warn('Could not load nearby roads', e))
-      .finally(() => (loading.current = false));
-  }, [position, match, merge]);
-
-  // Speed limit from the route itself (Mapbox), when the car is on it.
-  const fromRoute = useMemo(() => {
-    if (!position || !route || (!route.maxspeeds && !route.names)) return null;
+  const onRoute = useMemo(() => {
+    if (!position || !route) return null;
     const m = nearestOnLine(position.lngLat, route.geometry);
-    if (m.dist > 30) return null;
-    return { limit: route.maxspeeds?.[m.index] ?? null, name: route.names?.[m.index] ?? null };
+    return m.dist <= 30 ? m.index : null;
   }, [position, route]);
 
-  const roadName = fromRoute?.name ?? (match ? match.road.name ?? null : null);
-  if (fromRoute?.limit != null) {
-    return { roadName, highway: match?.road.highway ?? null, limit: fromRoute.limit, estimated: false, source: 'mapbox' };
-  }
-  if (!match && roadName) return { roadName, highway: null, limit: null, estimated: false, source: 'osm' };
-  if (!match) return null;
-  const osm = limitFor(match.road);
-  return { roadName, highway: match.road.highway, ...osm, source: osm.estimated ? 'estimate' : 'osm' };
+  const road = useMemo(() => (position ? matchRoad(position, roads) : null), [position, roads]);
+  const matched = useMapMatch(position, onRoute == null && !road?.maxspeed, mapboxToken);
+
+  return useMemo<SpeedLimitInfo | null>(() => {
+    if (!position) return null;
+    const here = position.lngLat;
+
+    if (onRoute != null && route) {
+      const roadName = route.names?.[onRoute] ?? road?.name ?? null;
+      const recorded = route.maxspeeds?.[onRoute] ?? null;
+      if (recorded != null) return { roadName, limit: recorded, estimated: false, source: 'mapbox' };
+      if (road?.maxspeed) return { roadName, limit: road.maxspeed, estimated: false, source: 'osm' };
+      const cls = route.roadClass?.[onRoute] ?? road?.highway ?? null;
+      if (!cls) return roadName ? { roadName, limit: null, estimated: true, source: 'estimate' } : null;
+      const builtUp = route.urban?.[onRoute] === true || !!road || isBuiltUp(places, here);
+      return { roadName, limit: estimateLimit(cls, builtUp), estimated: true, source: 'estimate' };
+    }
+
+    if (road?.maxspeed) return { roadName: road.name ?? null, limit: road.maxspeed, estimated: false, source: 'osm' };
+    const fresh = matched && Date.now() - matched.time < 45000 && distance(matched.at, here) < 400 ? matched : null;
+    if (fresh?.limit != null) return { roadName: fresh.name ?? road?.name ?? null, limit: fresh.limit, estimated: false, source: 'mapbox' };
+    const cls = road?.highway ?? fresh?.cls ?? null;
+    if (!cls) return null;
+    const builtUp = !!road || fresh?.urban === true || isBuiltUp(places, here);
+    return { roadName: road?.name ?? fresh?.name ?? null, limit: estimateLimit(cls, builtUp), estimated: true, source: 'estimate' };
+  }, [position, route, onRoute, road, matched, places]);
 }

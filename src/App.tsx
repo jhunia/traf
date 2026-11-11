@@ -15,12 +15,10 @@ import { cumulative, distance, formatDistance, formatDuration, type BBox, type L
 import { sentence, spokenDistance } from './lib/maneuvers';
 import { analyzeTraffic, fetchScenarios, freeFlowFactor, jamWord, routeDelay, type TrafficScenarios } from './lib/traffic';
 import { TrafficSummary } from './components/TrafficSummary';
-import { loadCameras, pointFeatures, routeEntryFeatures, siteLabel, sitesHere, type CameraData } from './lib/cameras';
+import { cityAt, citiesOnRoute, loadCameras, pointFeatures, routeEntryFeatures, siteLabel, sitesHere, type CameraData } from './lib/cameras';
 import { useNavigation } from './hooks/useNavigation';
 import { NavBanner } from './components/NavBanner';
-
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
-import { REGION, SPEED_TOLERANCE } from './lib/ghana';
+import { REGION, SPEED_TOLERANCE, SPEED_TOLERANCE_ESTIMATE } from './lib/ghana';
 import { getRoutes, type Route, type RoadControl } from './lib/routing';
 import { reverseGeocode, shortLabel, type Place } from './lib/search';
 import { spokenAlert, upcomingAlerts } from './lib/alerts';
@@ -31,6 +29,13 @@ import { beep, speak } from './lib/voice';
 import type { RoadFeature } from './lib/osm';
 
 const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) || undefined;
+
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+/** Stable key for a spoken prompt: where the manoeuvre is, so reroutes and traffic refreshes don't repeat it. */
+const stepKey = (route: Route, startIndex: number, bucket: string) => {
+  const at = route.geometry[Math.min(startIndex, route.geometry.length - 1)];
+  return `${at[0].toFixed(4)},${at[1].toFixed(4)}-${bucket}`;
+};
 
 type DriveMode = 'off' | 'gps' | 'sim';
 
@@ -82,12 +87,14 @@ export default function App() {
   const hasFix = !!gps.position;
   const gpsStatusRef = useRef(gps.status);
   gpsStatusRef.current = gps.status;
-  const region = useRegionData();
+  // Where the driver (or, without GPS, the map) is: decides which city road files to load.
+  const [mapCenter, setMapCenter] = useState<LngLat | null>(null);
+  const region = useRegionData(gps.position?.lngLat ?? mapCenter);
   const [cameras, setCameras] = useState<CameraData | null>(null);
   useEffect(() => {
     loadCameras().then(setCameras);
   }, []);
-  const { features, loading: featuresLoading, error: featuresError, loadInView, loadAlongRoute } = useRoadFeatures(region.regions);
+  const { features, loading: featuresLoading, error: featuresError, loadInView, loadAlongRoute } = useRoadFeatures(region.features, region.covered);
   const route = routes[selected] ?? null;
   const routeLine = route?.geometry ?? null;
   const sim = useSimulation(routeLine, simSpeed, drive === 'sim', () => {
@@ -97,8 +104,8 @@ export default function App() {
   const position = drive === 'sim' ? sim : gps.position;
   const positionRef = useRef(position);
   positionRef.current = position;
-  const limitInfo = useSpeedLimit(position, route, region.regions);
-  const view = useRef<{ bbox: BBox; zoom: number }>({ bbox: [0, 0, 0, 0], zoom: REGION.zoom });
+  const limitInfo = useSpeedLimit(position, route, region.roads, region.places, MAPBOX_TOKEN);
+  const view = useRef<{ bbox: BBox; zoom: number }>({ bbox: REGION.bounds, zoom: 6 });
   const gpsRef = useRef(gps.position);
   gpsRef.current = gps.position;
 
@@ -221,7 +228,8 @@ export default function App() {
     if (!nav?.step || muted || drive === 'off') return;
     const d = nav.distToStep;
     const s = nav.step;
-    const key = (b: string) => `${route?.id}-${nav.stepIndex}-${b}`;
+    if (!route) return;
+    const key = (b: string) => stepKey(route, s.startIndex, b);
     const say = (bucket: string, text: string) => {
       if (spokenSteps.current.has(key(bucket))) return;
       // Mark this and all farther buckets as done so we never say an older prompt late.
@@ -233,14 +241,14 @@ export default function App() {
     } else if (d <= 30) say('now', sentence(s));
     else if (d <= 160) say('near', `In ${spokenDistance(d)}, ${lowerFirst(sentence(s))}`);
     else if (d <= 600 && (position?.speedKmh ?? 0) > 35) say('far', `In ${spokenDistance(d)}, ${lowerFirst(sentence(s))}`);
-  }, [nav, muted, drive, route?.id, position?.speedKmh]);
+  }, [nav, muted, drive, route, position?.speedKmh]);
 
   // ---- "Heavy traffic ahead" — said once per slow stretch ----
   const spokenTraffic = useRef(new Set<string>());
   useEffect(() => {
     const t = nav?.trafficAhead;
     if (!t || muted || t.level === 'moderate' || t.inM > 1500) return;
-    const key = `${route?.id}-${Math.round((nav!.along + t.inM) / 100)}`;
+    const key = `${t.at[0].toFixed(3)},${t.at[1].toFixed(3)}`; // by place, so a traffic refresh doesn't repeat it
     if (spokenTraffic.current.has(key)) return;
     spokenTraffic.current.add(key);
     const mins = Math.max(1, Math.round(t.timeS / 60));
@@ -248,7 +256,7 @@ export default function App() {
       `${jamWord(t.level)} ahead${t.inM > 100 ? ` in ${spokenDistance(t.inM)}` : ''}. ` +
         `About ${mins} ${mins === 1 ? 'minute' : 'minutes'} to get through.`,
     );
-  }, [nav, muted, route?.id]);
+  }, [nav, muted]);
 
   // ---- Off the route: recalculate from where the car is (like every nav app) ----
   const [rerouting, setRerouting] = useState(false);
@@ -304,8 +312,19 @@ export default function App() {
   useEffect(() => {
     if (!driving || !('wakeLock' in navigator)) return;
     let lock: { release: () => Promise<void> } | null = null;
-    (navigator as any).wakeLock.request('screen').then((l: any) => (lock = l)).catch(() => {});
+    let stopped = false;
+    const acquire = () =>
+      (navigator as any).wakeLock
+        .request('screen')
+        .then((l: any) => (stopped ? l.release() : (lock = l)))
+        .catch(() => {});
+    // The browser drops the lock whenever the app goes to the background: take it again on return.
+    const onVisible = () => document.visibilityState === 'visible' && acquire();
+    acquire();
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
+      stopped = true;
+      document.removeEventListener('visibilitychange', onVisible);
       lock?.release().catch(() => {});
     };
   }, [driving]);
@@ -318,31 +337,48 @@ export default function App() {
     return () => clearTimeout(t);
   }, [driving, follow, panTick]);
 
-  // Speak each alert once.
-  const announced = useRef(new Set<string>());
+  // Speak each alert once per pass (again if we come back more than 5 minutes later).
+  const announced = useRef(new Map<string, number>());
   useEffect(() => {
+    const now = Date.now();
     for (const a of alerts) {
-      if (announced.current.has(a.feature.id)) continue;
-      announced.current.add(a.feature.id);
+      const last = announced.current.get(a.feature.id);
+      announced.current.set(a.feature.id, now);
+      if (last && now - last < 5 * 60 * 1000) continue;
       if (!muted) speak(spokenAlert(a.feature));
     }
   }, [alerts, muted]);
 
-  // Speeding warning, repeated every 15 s while over the limit.
+  // Entering a city where police confirm TraffiTech cameras operate: say so once.
+  const toldCities = useRef(new Set<string>());
+  useEffect(() => {
+    if (!position || !layers.camera || (!driving && (position.speedKmh ?? 0) < 5)) return;
+    const city = cityAt(cameras, position.lngLat);
+    if (!city || toldCities.current.has(city.id)) return;
+    toldCities.current.add(city.id);
+    setToast(`Police speed cameras operate in ${city.name}. Watch your speed.`);
+    if (!muted) speak(`Police speed cameras operate in ${city.name}. Watch your speed.`);
+  }, [position, cameras, driving, layers.camera, muted]);
+
+  // Speeding warning while over the limit. Recorded limits: every 15 s at +5 km/h.
+  // Estimated limits (no posted limit on record): gentler, every 40 s at +10 km/h.
   const speed = position?.speedKmh ?? null;
   const limit = limitInfo?.limit ?? null;
-  const over = speed != null && limit != null && speed > limit + SPEED_TOLERANCE;
+  const limitEstimated = limitInfo?.estimated ?? false;
+  const over = speed != null && limit != null && speed > limit + (limitEstimated ? SPEED_TOLERANCE_ESTIMATE : SPEED_TOLERANCE);
   const lastWarn = useRef(0);
   useEffect(() => {
-    if (!over || muted || Date.now() - lastWarn.current < 15000) return;
+    if (!over || muted || Date.now() - lastWarn.current < (limitEstimated ? 40000 : 15000)) return;
     lastWarn.current = Date.now();
     beep();
-    speak(`Slow down. The speed limit is ${limit}`);
-  }, [over, muted, limit, position]);
+    speak(limitEstimated ? `Slow down. The usual limit on this kind of road is ${limit}` : `Slow down. The speed limit is ${limit}`);
+  }, [over, muted, limit, limitEstimated, position]);
 
   const onViewChange = useCallback(
     (bbox: BBox, z: number) => {
       view.current = { bbox, zoom: z };
+      const c: LngLat = [Math.round(((bbox[0] + bbox[2]) / 2) * 50) / 50, Math.round(((bbox[1] + bbox[3]) / 2) * 50) / 50];
+      setMapCenter((prev) => (prev && prev[0] === c[0] && prev[1] === c[1] ? prev : c));
       // While driving the camera moves constantly; hazards along the route are already loaded,
       // so don't hit the map-data servers on every camera move.
       if (!drivingRef.current) loadInView(bbox, z);
@@ -404,7 +440,7 @@ export default function App() {
       // The start announcement already names the first manoeuvre; if it's close, don't repeat it.
       const along = cumulative(route.geometry)[Math.min(first.startIndex, route.geometry.length - 1)];
       const skip = along < 200 ? ['far', 'near', 'now'] : along < 700 ? ['far'] : [];
-      skip.forEach((b) => spokenSteps.current.add(`${route.id}-${firstIdx}-${b}`));
+      skip.forEach((b) => spokenSteps.current.add(stepKey(route, first.startIndex, b)));
     }
     if (!muted) speak(`${mode === 'sim' ? 'Starting test drive.' : 'Starting route.'} ${first ? sentence(first) : ''}`);
   };
@@ -427,14 +463,15 @@ export default function App() {
   };
 
   const fastest = routes.length ? Math.min(...routes.map((r) => r.duration)) : 0;
-  const near = position?.lngLat ?? REGION.center;
+  // Search favours places near the driver, or near what the map is showing.
+  const near = position?.lngLat ?? mapCenter ?? REGION.center;
+  const camCities = useMemo(() => citiesOnRoute(cameras, routeLine), [cameras, routeLine]);
   const roadName = limitInfo?.roadName ?? null;
 
   const status =
     toast ??
     (featuresError && !driving ? featuresError : null) ??
-    (featuresLoading && !driving ? 'Loading road data…' : null) ??
-    (region.loaded && region.regions.length === 0 && !driving ? 'Offline road data not downloaded yet: run "npm run fetch-data".' : null);
+    (featuresLoading && !driving ? 'Loading road data…' : null);
 
   return (
     <div className={`app ${driving ? 'is-driving' : ''} ${searching ? 'is-searching' : ''}`}>
@@ -472,7 +509,7 @@ export default function App() {
       ) : (
         <>
           {driving && (nav || rerouting) && <NavBanner nav={nav!} rerouting={rerouting} />}
-          <AlertBanner alerts={alerts} over={over} limit={limit} belowBanner={driving} />
+          <AlertBanner alerts={alerts} over={over} limit={limit} estimated={limitEstimated} belowBanner={driving} />
         </>
       )}
 
@@ -584,6 +621,7 @@ export default function App() {
                       <span className="route-meta">
                         {formatDistance(r.distance)} · arrive {clock(r.duration)}
                       </span>
+                      {r.summary && <span className="route-via">via {r.summary}</span>}
                       {(() => {
                         if (r.source !== 'mapbox') return null;
                         const js = jams.get(r.id) ?? [];
@@ -606,6 +644,14 @@ export default function App() {
                 <TrafficSummary route={route} jams={routeJams} scenarios={selected === 0 ? scenarios : null} />
               ) : (
                 <p className="route-note">Typical times, without live traffic.</p>
+              )}
+              {camCities.length > 0 && layers.camera && (
+                <p className="cam-note">
+                  <img src={iconUrl('rw-camera')} alt="" />
+                  <span>
+                    Police speed cameras operate in <strong>{camCities.map((c) => c.name).join(', ')}</strong> on this trip.
+                  </span>
+                </p>
               )}
               <div className="sheet-actions">
                 <button className="btn btn-black" onClick={() => startDrive('gps')} disabled={pendingStart && !hasFix}>

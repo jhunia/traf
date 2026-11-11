@@ -283,3 +283,31 @@ input[type='range'] { accent-color: var(--black); width: 100%; }
 .loc-txt strong { font-size: 14.5px; }
 .loc-txt span { font-size: 12.5px; color: var(--ink-2); line-height: 1.35; }
 .loc-btn { flex: none; height: 38px; padding: 0 16px; font-size: 14px; border-radius: 10px; }
+
+/* Map legend (layers menu) */
+.layers-menu { max-height: calc(100vh - 110px); overflow: auto; }
+.legend { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.legend h4 { margin: 0 0 2px; font-size: 12px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.4px; }
+.legend-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; line-height: 1.3; }
+.legend-row > span:first-child { flex: none; width: 40px; display: inline-block; }
+.lg-route { height: 6px; border-radius: 3px; background: linear-gradient(90deg, #000 0 55%, #f5a623 55% 78%, #e11900 78%); }
+.lg-traffic { height: 4px; border-radius: 2px; background: linear-gradient(90deg, #1fa855 0 45%, #f5a623 45% 72%, #e11900 72%); }
+.lg-camroad { height: 0; border-top: 4px dashed #e11900; }
+.lg-camzone { height: 20px; width: 20px !important; margin: 0 10px; border-radius: 50%; border: 1.5px dashed #e11900; background: rgba(225, 25, 0, 0.08); }
+.lg-jam, .lg-est { font-size: 10.5px; font-weight: 700; color: #fff; border-radius: 6px; text-align: center; padding: 2px 0; }
+.lg-jam { background: #c41600; }
+.lg-est { background: var(--black); text-transform: uppercase; }
+
+/* Route sheet extras */
+.route-via { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cam-note { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink); background: #fff1ef; border-radius: 10px; padding: 8px 12px; line-height: 1.35; }
+.cam-note img { width: 24px; height: 24px; flex: none; }
+
+/* City quick-picks in search */
+.place-list .city-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 2px 12px; }
+.place-list .city-chips button { width: auto; padding: 9px 15px; border: 0; border-radius: 999px; background: var(--grey); font-size: 14px; font-weight: 600; }
+.place-list .city-chips button:hover { background: var(--grey-2); }
+.range-now span.at-start { left: -2px; transform: none; }
+.range-now span.at-end { left: auto; right: -2px; transform: none; }
+.pick-banner { right: 76px; }
+@media (min-width: 720px) { .pick-banner { right: auto; } }

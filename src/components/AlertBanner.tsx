@@ -6,11 +6,12 @@ interface Props {
   alerts: Alert[];
   over: boolean;
   limit: number | null;
+  estimated: boolean; // the limit is Ghana's default for this kind of road, not a recorded sign
   belowBanner: boolean; // sits under the turn-by-turn banner while navigating
 }
 
 /** Hazard card: the next camera / bump / pothole / sign ahead, or a speeding warning. */
-export function AlertBanner({ alerts, over, limit, belowBanner }: Props) {
+export function AlertBanner({ alerts, over, limit, estimated, belowBanner }: Props) {
   const first = alerts[0];
   const cls = `hazard ${belowBanner ? 'hazard-low' : ''}`;
 
@@ -20,7 +21,7 @@ export function AlertBanner({ alerts, over, limit, belowBanner }: Props) {
         <div className="hazard-limit">{limit}</div>
         <div className="hazard-txt">
           <strong>Slow down</strong>
-          <span>Speed limit {limit} km/h</span>
+          <span>{estimated ? `Usual limit here is ${limit} km/h (estimated)` : `Speed limit ${limit} km/h`}</span>
         </div>
       </div>
     );

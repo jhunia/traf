@@ -28,7 +28,8 @@
   },
   "_confidence": {
     "news": "Named in news reports quoting police/MTTD enforcement results",
-    "crowd": "Reported by drivers on the Glydr and Waze apps (unofficial)"
+    "crowd": "Reported by drivers on the Glydr and Waze apps (unofficial)",
+    "police": "Police (MTTD) confirm cameras operate in this city (city level only; many are in patrol vehicles or on tripods)"
   },
   "sites": [
     {
@@ -363,6 +364,126 @@
       "query": "Ayeduase, Kumasi",
       "confidence": "crowd",
       "source": "yen-mapped"
+    },
+    {
+      "id": "city-accra",
+      "name": "Accra",
+      "type": "city",
+      "lngLat": [
+        -0.2012,
+        5.5571
+      ],
+      "radius": 15000,
+      "confidence": "police",
+      "source": "yen-regions",
+      "also": [
+        "3news-first-days"
+      ]
+    },
+    {
+      "id": "city-tema",
+      "name": "Tema",
+      "type": "city",
+      "lngLat": [
+        -0.0097,
+        5.6596
+      ],
+      "radius": 7000,
+      "confidence": "police",
+      "source": "yen-regions",
+      "also": [
+        "3news-first-days"
+      ]
+    },
+    {
+      "id": "city-kumasi",
+      "name": "Kumasi",
+      "type": "city",
+      "lngLat": [
+        -1.6233,
+        6.6986
+      ],
+      "radius": 10000,
+      "confidence": "police",
+      "source": "yen-regions",
+      "also": [
+        "3news-first-days"
+      ]
+    },
+    {
+      "id": "city-takoradi",
+      "name": "Takoradi",
+      "type": "city",
+      "lngLat": [
+        -1.7519,
+        4.8874
+      ],
+      "radius": 7000,
+      "confidence": "police",
+      "source": "yen-regions",
+      "also": [
+        "3news-first-days"
+      ]
+    },
+    {
+      "id": "city-sunyani",
+      "name": "Sunyani",
+      "type": "city",
+      "lngLat": [
+        -2.3309,
+        7.3384
+      ],
+      "radius": 5000,
+      "confidence": "police",
+      "source": "yen-regions",
+      "also": [
+        "3news-first-days"
+      ]
+    },
+    {
+      "id": "city-tamale",
+      "name": "Tamale",
+      "type": "city",
+      "lngLat": [
+        -0.8424,
+        9.4052
+      ],
+      "radius": 7000,
+      "confidence": "police",
+      "source": "yen-regions",
+      "also": [
+        "3news-first-days"
+      ]
+    },
+    {
+      "id": "city-koforidua",
+      "name": "Koforidua",
+      "type": "city",
+      "lngLat": [
+        -0.2615,
+        6.1003
+      ],
+      "radius": 5000,
+      "confidence": "police",
+      "source": "yen-regions",
+      "also": [
+        "3news-first-days"
+      ]
+    },
+    {
+      "id": "city-ho",
+      "name": "Ho",
+      "type": "city",
+      "lngLat": [
+        0.4689,
+        6.6127
+      ],
+      "radius": 5000,
+      "confidence": "police",
+      "source": "yen-regions",
+      "also": [
+        "3news-first-days"
+      ]
     }
   ],
   "notPlaced": [

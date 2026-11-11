@@ -1,5 +1,5 @@
 import type { SpeedLimitInfo } from '../hooks/useSpeedLimit';
-import { SPEED_TOLERANCE } from '../lib/ghana';
+import { SPEED_TOLERANCE, SPEED_TOLERANCE_ESTIMATE } from '../lib/ghana';
 
 interface Props {
   speed: number | null;
@@ -14,7 +14,8 @@ export function Speedometer({ speed, info: rawInfo, simulated, large, showLimit 
   const info = showLimit ? rawInfo : null;
   const limit = info?.limit ?? null;
   const v = speed != null ? Math.round(speed) : null;
-  const state = v == null || limit == null ? 'ok' : v > limit + SPEED_TOLERANCE ? 'over' : v > limit ? 'near' : 'ok';
+  const tolerance = info?.estimated ? SPEED_TOLERANCE_ESTIMATE : SPEED_TOLERANCE;
+  const state = v == null || limit == null ? 'ok' : v > limit + tolerance ? 'over' : v > limit ? 'near' : 'ok';
   return (
     <div className={`speed ${large ? 'speed-lg' : ''} speed-${state}`} role="status" aria-label={`Speed ${v ?? 'unknown'} km/h, limit ${limit ?? 'unknown'}`}>
       <div className="speed-bubble">
@@ -29,7 +30,7 @@ export function Speedometer({ speed, info: rawInfo, simulated, large, showLimit 
             : info?.source === 'mapbox'
               ? 'Speed limit from Mapbox'
               : info?.estimated
-                ? 'Estimated from road type: no limit recorded for this road'
+                ? "No posted limit on record: this is Ghana's default for this kind of road"
                 : 'Speed limit from OpenStreetMap'
         }
       >

@@ -8,6 +8,7 @@
 // - stretch:  a named road between two places
 // - place:    a looked-up point (optionally snapped onto a named road)
 // - zone:     a neighbourhood-level report, drawn as a circle (default 700 m)
+// - city:     police confirm cameras operate in this city (no street-level detail)
 import { readFile, writeFile } from 'node:fs/promises';
 
 const src = JSON.parse(await readFile('scripts/cameras-gh.sources.json', 'utf8'));
@@ -118,7 +119,10 @@ for (const s of src.sites) {
     sources: [s.source, ...(s.also ?? [])],
   };
   try {
-    if (s.type === 'junction') {
+    if (s.type === 'city') {
+      // City-level: police confirm cameras operate here. Coordinates are given in the sources file.
+      out.push({ ...base, kind: 'city', lngLat: s.lngLat, radius: s.radius });
+    } else if (s.type === 'junction') {
       out.push({ ...base, kind: 'point', lngLat: junction(s.roads[0], s.roads[1]).map(r5) });
     } else if (s.type === 'road' && s.roads) {
       let lines = roadsNamed(s.roads).map((r) => r.geometry);

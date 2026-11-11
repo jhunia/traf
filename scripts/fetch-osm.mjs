@@ -1,11 +1,13 @@
-// Downloads OpenStreetMap road data for a region into public/data/, so the app
-// does not depend on slow public Overpass servers while driving.
+// Downloads OpenStreetMap road data into public/data/, so the app does not depend on
+// slow public Overpass servers while driving.
 //
-//   node scripts/fetch-osm.mjs            (Greater Accra)
-//   node scripts/fetch-osm.mjs kumasi
+//   node scripts/fetch-osm.mjs ghana      whole country: cameras, bumps, lights, signs, potholes
+//   node scripts/fetch-osm.mjs places     whole country: where the cities, towns and villages are (built-up areas)
+//   node scripts/fetch-osm.mjs accra      one city: roads with speed limits (also kumasi, takoradi, tamale)
 //
-// Output: public/data/<region>-features.json  (cameras, bumps, signs, potholes)
-//         public/data/<region>-roads.json     (roads with speed-limit info)
+// Output: public/data/ghana-features.json
+//         public/data/ghana-places.json
+//         public/data/<city>-roads.json (+ <city>-features.json)
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
 const CACHE = 'scripts/.cache';
@@ -15,6 +17,10 @@ const REGIONS = {
   accra: [5.45, -0.5, 5.9, 0.15],
   kumasi: [6.55, -1.75, 6.8, -1.5],
   takoradi: [4.85, -1.85, 5.0, -1.65],
+  tamale: [9.3, -0.95, 9.5, -0.75],
+  // Whole country (features only). Queries are also limited to Ghana's border, not just this box.
+  ghana: [4.5, -3.3, 11.2, 1.25],
+  places: [4.5, -3.3, 11.2, 1.25],
 };
 
 const ENDPOINTS = [
@@ -64,6 +70,91 @@ const r5 = (n) => Math.round(n * 1e5) / 1e5;
 console.log(`Region: ${region} ${B}`);
 await mkdir('public/data', { recursive: true });
 await mkdir(CACHE, { recursive: true });
+
+if (region === 'places') {
+  // Settlements nationwide: used to tell when a road is in a built-up area (50 km/h default limit).
+  const ROWS = 4, COLS = 3;
+  const [s0, w0, n0, e0] = bbox;
+  const byId = new Map();
+  for (let i = 0; i < ROWS; i++) {
+    for (let j = 0; j < COLS; j++) {
+      const s = s0 + ((n0 - s0) * i) / ROWS, n = s0 + ((n0 - s0) * (i + 1)) / ROWS;
+      const w = w0 + ((e0 - w0) * j) / COLS, e = w0 + ((e0 - w0) * (j + 1)) / COLS;
+      const label = `ghana places tile ${i * COLS + j + 1}/${ROWS * COLS}`;
+      const cacheFile = `${CACHE}/ghana-places-${i}-${j}.json`;
+      let part = await readFile(cacheFile, 'utf8').then(JSON.parse).catch(() => null);
+      if (part) console.log(`  ${label}: cached`);
+      else {
+        part = await overpass(
+          `[out:json][timeout:180];
+area["ISO3166-1"="GH"][admin_level=2]->.gh;
+node["place"~"^(city|town|village)$"](area.gh)(${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});
+out body;`,
+          label,
+        );
+        await writeFile(cacheFile, JSON.stringify(part));
+      }
+      for (const el of part.elements) byId.set(el.id, el);
+    }
+  }
+  const CODE = { city: 0, town: 1, village: 2 };
+  const places = [...byId.values()].map((el) => [Math.round(el.lon * 1e4) / 1e4, Math.round(el.lat * 1e4) / 1e4, CODE[el.tags?.place] ?? 2]);
+  await writeFile('public/data/ghana-places.json', JSON.stringify({ fetchedAt: new Date().toISOString(), types: ['city', 'town', 'village'], places }));
+  const c = (k) => places.filter((p) => p[2] === k).length;
+  console.log(`
+Saved public/data/ghana-places.json: ${c(0)} cities, ${c(1)} towns, ${c(2)} villages`);
+  process.exit(0);
+}
+
+if (region === 'ghana') {
+  // Nationwide hazards, in a grid of tiles limited to Ghana's border. Each tile is cached.
+  const ROWS = 4, COLS = 3;
+  const [s0, w0, n0, e0] = bbox;
+  const byId = new Map();
+  for (let i = 0; i < ROWS; i++) {
+    for (let j = 0; j < COLS; j++) {
+      const s = s0 + ((n0 - s0) * i) / ROWS, n = s0 + ((n0 - s0) * (i + 1)) / ROWS;
+      const w = w0 + ((e0 - w0) * j) / COLS, e = w0 + ((e0 - w0) * (j + 1)) / COLS;
+      const T = `(area.gh)(${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)})`;
+      const label = `ghana features tile ${i * COLS + j + 1}/${ROWS * COLS}`;
+      const cacheFile = `${CACHE}/ghana-features-${i}-${j}.json`;
+      let part = await readFile(cacheFile, 'utf8').then(JSON.parse).catch(() => null);
+      if (part) console.log(`  ${label}: cached`);
+      else {
+        part = await overpass(
+          `[out:json][timeout:180];
+area["ISO3166-1"="GH"][admin_level=2]->.gh;
+(
+  node["highway"="speed_camera"]${T};
+  node["man_made"="surveillance"]["surveillance"="traffic"]${T};
+  node["traffic_calming"]${T};
+  way["traffic_calming"]${T};
+  node["highway"~"^(stop|give_way|traffic_signals|mini_roundabout)$"]${T};
+  node["traffic_sign"]${T};
+  node["hazard"]${T};
+);
+out center tags;`,
+          label,
+        );
+        await writeFile(cacheFile, JSON.stringify(part));
+      }
+      for (const el of part.elements) byId.set(`${el.type}${el.id}`, el);
+    }
+  }
+  const out = [...byId.values()]
+    .map((el) => {
+      const lat = el.lat ?? el.center?.lat;
+      const lon = el.lon ?? el.center?.lon;
+      return lat == null ? null : { type: el.type, id: el.id, lon: r5(lon), lat: r5(lat), tags: el.tags ?? {} };
+    })
+    .filter(Boolean);
+  await writeFile('public/data/ghana-features.json', JSON.stringify({ region, bbox, fetchedAt: new Date().toISOString(), elements: out }));
+  const n = (pred) => out.filter((f) => pred(f.tags)).length;
+  console.log(`
+Saved public/data/ghana-features.json: ${out.length} features`);
+  console.log(`  cameras ${n((t) => t.highway === 'speed_camera' || t.man_made === 'surveillance')}, speed bumps ${n((t) => t.traffic_calming)}, traffic lights ${n((t) => t.highway === 'traffic_signals')}, stop/give way ${n((t) => t.highway === 'stop' || t.highway === 'give_way')}, other signs/hazards ${n((t) => t.traffic_sign || t.hazard)}`);
+  process.exit(0);
+}
 
 const features = await overpass(
   `[out:json][timeout:180];

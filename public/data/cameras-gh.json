@@ -1,5 +1,5 @@
 {
- "builtAt": "2026-11-07T07:44:35.722Z",
+ "builtAt": "2026-11-10T10:17:00.096Z",
  "sources": {
   "yen-mapped": {
    "title": "TraffiTech-GH speed camera locations mapped by drivers across Accra and Kumasi (YEN, 2 Nov 2026)",
@@ -41,7 +41,7 @@
     -0.18159,
     5.5894
    ],
-   "located": "Jawaharlal Nehru Road, Labone, La, Accra, La-Dade-Kotopon Municipal District, Greater Accra Region, Ghana"
+   "located": "Jawaharlal Nehru Road, Cantonments, La, Accra, La-Dade-Kotopon Municipal District, Greater Accra Region, GL-070-5368, Ghana"
   },
   {
    "id": "boundary-mahama",
@@ -2117,156 +2117,12 @@
    "lines": [
     [
      [
-      -0.19727,
-      5.57636
+      -0.20057,
+      5.56912
      ],
      [
-      -0.19718,
-      5.57654
-     ],
-     [
-      -0.19632,
-      5.5782
-     ],
-     [
-      -0.19583,
-      5.57929
-     ],
-     [
-      -0.19576,
-      5.57944
-     ],
-     [
-      -0.19567,
-      5.57963
-     ],
-     [
-      -0.19538,
-      5.58034
-     ],
-     [
-      -0.19451,
-      5.58241
-     ],
-     [
-      -0.19399,
-      5.58363
-     ],
-     [
-      -0.19391,
-      5.5838
-     ],
-     [
-      -0.19279,
-      5.58612
-     ],
-     [
-      -0.19265,
-      5.5865
-     ],
-     [
-      -0.1925,
-      5.587
-     ],
-     [
-      -0.19237,
-      5.58741
-     ],
-     [
-      -0.1923,
-      5.58764
-     ],
-     [
-      -0.19221,
-      5.58786
-     ],
-     [
-      -0.1921,
-      5.58813
-     ],
-     [
-      -0.19201,
-      5.58832
-     ],
-     [
-      -0.19186,
-      5.58858
-     ],
-     [
-      -0.19163,
-      5.589
-     ],
-     [
-      -0.1914,
-      5.58941
-     ],
-     [
-      -0.19089,
-      5.59034
-     ],
-     [
-      -0.19066,
-      5.59074
-     ],
-     [
-      -0.1903,
-      5.59125
-     ],
-     [
-      -0.19007,
-      5.59159
-     ],
-     [
-      -0.18991,
-      5.59187
-     ],
-     [
-      -0.18986,
-      5.59195
-     ],
-     [
-      -0.18977,
-      5.59216
-     ],
-     [
-      -0.18969,
-      5.59237
-     ],
-     [
-      -0.18964,
-      5.59255
-     ],
-     [
-      -0.18956,
-      5.59278
-     ],
-     [
-      -0.18946,
-      5.59314
-     ],
-     [
-      -0.18939,
-      5.59345
-     ],
-     [
-      -0.18937,
-      5.59362
-     ],
-     [
-      -0.18931,
-      5.594
-     ],
-     [
-      -0.18925,
-      5.59453
-     ],
-     [
-      -0.1892,
-      5.59475
-     ],
-     [
-      -0.18915,
-      5.59524
+      -0.19976,
+      5.57057
      ]
     ]
    ]
@@ -7385,11 +7241,11 @@
    ],
    "kind": "zone",
    "lngLat": [
-    -0.22971,
-    5.60885
+    -0.22621,
+    5.60877
    ],
    "radius": 700,
-   "located": "Apenkwa Presbyterian Junior High School, Brenya Avenue, Tesano Estates, Tesano, Accra, Okaikwei North Municipal District, Greater Accra Region, Ghana"
+   "located": "Total Apenkwa, Nsawam Road, Old Tesano, Tesano, Accra, Ayawaso West Municipal District, Greater Accra Region, Ghana"
   },
   {
    "id": "abeka",
@@ -7470,8 +7326,8 @@
    ],
    "kind": "zone",
    "lngLat": [
-    -0.26479,
-    5.65761
+    -0.26547,
+    5.65766
    ],
    "radius": 700,
    "located": "Ofankor Barrier, Nsawam Road, Ofankor, Pokuase, Ga North Municipal District, Greater Accra Region, Ghana"
@@ -7521,11 +7377,11 @@
    ],
    "kind": "zone",
    "lngLat": [
-    -0.19176,
-    5.66739
+    -0.1841,
+    5.66736
    ],
    "radius": 700,
-   "located": "Haatso-Atomic Road, Papao, Legon, Accra, Ga East Municipal District, Greater Accra Region, GE-113-7193, Ghana"
+   "located": "Haatso-Atomic Road, North Legon, Legon, Accra, La-Nkwantanang-Madina Municipal District, Greater Accra Region, GE-113-7193, Ghana"
   },
   {
    "id": "papao",
@@ -7674,11 +7530,11 @@
    ],
    "kind": "zone",
    "lngLat": [
-    -1.57563,
-    6.68139
+    -1.58004,
+    6.68394
    ],
    "radius": 700,
-   "located": "University Printing Press, Kumasi (UPK), Ayeduase Road, Four Star Estates, Bomso, Oforikrom Municipal District, Ashanti Region, AK-010-1295, Ghana"
+   "located": "Evandy Hostel, Bomso Road, Bomso, Kumasi, Oforikrom Municipal District, Ashanti Region, AK-010-1295, Ghana"
   },
   {
    "id": "kumasi-ayigya",
@@ -7781,6 +7637,142 @@
    ],
    "radius": 700,
    "located": "Elite College Boys Hostel, Ayeduase, Ayeduase Road, Ayeduase New Site, Ayeduase, Kumasi, Oforikrom Municipal District, Ashanti Region, 00233, Ghana"
+  },
+  {
+   "id": "city-accra",
+   "name": "Accra",
+   "confidence": "police",
+   "limit": null,
+   "note": null,
+   "sources": [
+    "yen-regions",
+    "3news-first-days"
+   ],
+   "kind": "city",
+   "lngLat": [
+    -0.2012,
+    5.5571
+   ],
+   "radius": 15000
+  },
+  {
+   "id": "city-tema",
+   "name": "Tema",
+   "confidence": "police",
+   "limit": null,
+   "note": null,
+   "sources": [
+    "yen-regions",
+    "3news-first-days"
+   ],
+   "kind": "city",
+   "lngLat": [
+    -0.0097,
+    5.6596
+   ],
+   "radius": 7000
+  },
+  {
+   "id": "city-kumasi",
+   "name": "Kumasi",
+   "confidence": "police",
+   "limit": null,
+   "note": null,
+   "sources": [
+    "yen-regions",
+    "3news-first-days"
+   ],
+   "kind": "city",
+   "lngLat": [
+    -1.6233,
+    6.6986
+   ],
+   "radius": 10000
+  },
+  {
+   "id": "city-takoradi",
+   "name": "Takoradi",
+   "confidence": "police",
+   "limit": null,
+   "note": null,
+   "sources": [
+    "yen-regions",
+    "3news-first-days"
+   ],
+   "kind": "city",
+   "lngLat": [
+    -1.7519,
+    4.8874
+   ],
+   "radius": 7000
+  },
+  {
+   "id": "city-sunyani",
+   "name": "Sunyani",
+   "confidence": "police",
+   "limit": null,
+   "note": null,
+   "sources": [
+    "yen-regions",
+    "3news-first-days"
+   ],
+   "kind": "city",
+   "lngLat": [
+    -2.3309,
+    7.3384
+   ],
+   "radius": 5000
+  },
+  {
+   "id": "city-tamale",
+   "name": "Tamale",
+   "confidence": "police",
+   "limit": null,
+   "note": null,
+   "sources": [
+    "yen-regions",
+    "3news-first-days"
+   ],
+   "kind": "city",
+   "lngLat": [
+    -0.8424,
+    9.4052
+   ],
+   "radius": 7000
+  },
+  {
+   "id": "city-koforidua",
+   "name": "Koforidua",
+   "confidence": "police",
+   "limit": null,
+   "note": null,
+   "sources": [
+    "yen-regions",
+    "3news-first-days"
+   ],
+   "kind": "city",
+   "lngLat": [
+    -0.2615,
+    6.1003
+   ],
+   "radius": 5000
+  },
+  {
+   "id": "city-ho",
+   "name": "Ho",
+   "confidence": "police",
+   "limit": null,
+   "note": null,
+   "sources": [
+    "yen-regions",
+    "3news-first-days"
+   ],
+   "kind": "city",
+   "lngLat": [
+    0.4689,
+    6.6127
+   ],
+   "radius": 5000
   }
  ]
 }

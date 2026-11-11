@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { LngLat } from '../lib/geo';
 import { searchPlaces, shortLabel, type Place } from '../lib/search';
 import { Icon } from './Icon';
+import { MAJOR_PLACES } from '../lib/ghana';
 
 type Field = 'origin' | 'destination';
 
@@ -147,6 +148,18 @@ export function PlaceSearch({ origin, destination, hasGps, near, recents, onOrig
           </li>
         ))}
         {!showRecents && !busy && !error && results.length === 0 && <li className="place-note">No places found in Ghana for “{q}”.</li>}
+        {showRecents && (
+          <>
+            <li className="place-section">Cities across Ghana</li>
+            <li className="city-chips">
+              {MAJOR_PLACES.map((c) => (
+                <button key={c.name} onClick={() => choose({ label: `${c.name}, ${c.region} Region, Ghana`, lngLat: c.lngLat })}>
+                  {c.name}
+                </button>
+              ))}
+            </li>
+          </>
+        )}
       </ul>
     </div>
   );

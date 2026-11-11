@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { cumulative, distance, nearestOnLine } from '../lib/geo';
+import { cumulative, distance, nearestOnLine, type LngLat } from '../lib/geo';
 import type { Position } from '../lib/alerts';
 import type { Route, Step } from '../lib/routing';
 import type { JamLevel, TrafficStretch } from '../lib/traffic';
@@ -8,7 +8,7 @@ export interface NavState {
   along: number; // metres travelled along the route
   segIndex: number; // route segment the car is on
   // Next jam: how far away, how long, how long to get through it, and the extra time it costs.
-  trafficAhead: { level: JamLevel; inM: number; lengthM: number; timeS: number; delayS: number; road: string | null } | null;
+  trafficAhead: { level: JamLevel; at: LngLat; inM: number; lengthM: number; timeS: number; delayS: number; road: string | null } | null;
   offRouteBy: number; // metres from the route line
   offRoute: boolean; // confirmed off the route (several fixes in a row)
   step: Step | null; // next manoeuvre
@@ -79,6 +79,7 @@ export function useNavigation(
       const left = Math.min(1, (endAlong - m.along) / s.lengthM);
       trafficAhead = {
         level: s.level,
+        at: route.geometry[s.startIndex],
         inM: Math.max(0, s.startAlong - m.along),
         lengthM: s.lengthM * left,
         timeS: s.timeS * left,

@@ -25,6 +25,9 @@ export interface Route {
   durations: number[] | null; // seconds per segment (live traffic)
   distances: number[] | null; // metres per segment
   names: (string | null)[] | null; // street name per segment
+  roadClass: (string | null)[] | null; // road type per segment (motorway, trunk, primary, street, …)
+  urban: boolean[] | null; // per segment: the routing provider says it's in a built-up area
+  summary: string | null; // main roads used, e.g. "N6, Kumasi Road"
   steps: Step[];
   controls: RoadControl[]; // traffic lights, stop/give-way signs, rail crossings at junctions on the route
   source: 'mapbox' | 'osrm';
@@ -37,10 +40,18 @@ export interface RoadControl {
 }
 
 /** Turn-by-turn steps, each tied to where it happens on the route geometry. */
-function parseSteps(leg: any): { steps: Step[]; names: (string | null)[]; controls: RoadControl[] } {
+function parseSteps(leg: any): {
+  steps: Step[];
+  names: (string | null)[];
+  controls: RoadControl[];
+  roadClass: (string | null)[] | null;
+  urban: boolean[] | null;
+} {
   const steps: Step[] = [];
   const names: (string | null)[] = [];
   const controls: RoadControl[] = [];
+  // Road type + built-up flag change at junctions; each junction says where on the geometry it is.
+  const marks: { index: number; cls: string | null; urban: boolean }[] = [];
   let offset = 0;
   for (const s of leg?.steps ?? []) {
     const m = s.maneuver ?? {};
@@ -54,6 +65,9 @@ function parseSteps(leg: any): { steps: Step[]; names: (string | null)[]; contro
       startIndex: offset,
     });
     for (const x of s.intersections ?? []) {
+      if (typeof x.geometry_index === 'number' && x.mapbox_streets_v8?.class) {
+        marks.push({ index: x.geometry_index, cls: x.mapbox_streets_v8.class, urban: x.is_urban === true });
+      }
       const at = x.location as LngLat | undefined;
       if (!at) continue;
       if (x.traffic_signal) controls.push({ type: 'traffic_signals', lngLat: at });
@@ -65,7 +79,21 @@ function parseSteps(leg: any): { steps: Step[]; names: (string | null)[]; contro
     for (let k = 0; k < n; k++) names.push(name);
     offset += n;
   }
-  return { steps, names, controls };
+  let roadClass: (string | null)[] | null = null;
+  let urban: boolean[] | null = null;
+  if (marks.length) {
+    marks.sort((a, b) => a.index - b.index);
+    roadClass = new Array(offset).fill(null);
+    urban = new Array(offset).fill(false);
+    for (let m = 0; m < marks.length; m++) {
+      const end = marks[m + 1]?.index ?? offset;
+      for (let k = Math.max(0, marks[m].index); k < Math.min(end, offset); k++) {
+        roadClass[k] = marks[m].cls;
+        urban[k] = marks[m].urban;
+      }
+    }
+  }
+  return { steps, names, controls, roadClass, urban };
 }
 
 async function osrmRoutes(from: LngLat, to: LngLat): Promise<Route[]> {
@@ -77,7 +105,7 @@ async function osrmRoutes(from: LngLat, to: LngLat): Promise<Route[]> {
   const data = await res.json();
   if (data.code !== 'Ok' || !data.routes?.length) throw new Error('No route found between these points');
   return data.routes.map((r: any, i: number) => {
-    const { steps, names, controls } = parseSteps(r.legs?.[0]);
+    const { steps, names, controls, roadClass, urban } = parseSteps(r.legs?.[0]);
     return {
       id: `osrm-${i}`,
       geometry: r.geometry.coordinates as LngLat[],
@@ -90,6 +118,9 @@ async function osrmRoutes(from: LngLat, to: LngLat): Promise<Route[]> {
       durations: r.legs?.[0]?.annotation?.duration ?? null,
       distances: null,
       names,
+      roadClass,
+      urban,
+      summary: (r.legs?.[0]?.summary as string) || null,
       steps,
       controls,
       source: 'osrm' as const,
@@ -97,7 +128,7 @@ async function osrmRoutes(from: LngLat, to: LngLat): Promise<Route[]> {
   });
 }
 
-function toKmh(m: any): number | null {
+export function toKmh(m: any): number | null {
   if (!m || m.unknown || m.none || typeof m.speed !== 'number') return null;
   return m.unit === 'mph' ? Math.round(m.speed * 1.609) : m.speed;
 }
@@ -115,7 +146,7 @@ async function mapboxRoutes(from: LngLat, to: LngLat, token: string): Promise<Ro
     const leg = r.legs?.[0];
     const ann = leg?.annotation ?? {};
     const typical = typeof r.duration_typical === 'number' ? r.duration_typical : null;
-    const { steps, names, controls } = parseSteps(leg);
+    const { steps, names, controls, roadClass, urban } = parseSteps(leg);
     return {
       id: `mapbox-${i}-${Date.now()}`,
       geometry: r.geometry.coordinates as LngLat[],
@@ -128,6 +159,9 @@ async function mapboxRoutes(from: LngLat, to: LngLat, token: string): Promise<Ro
       durations: Array.isArray(ann.duration) ? ann.duration : null,
       distances: Array.isArray(ann.distance) ? ann.distance : null,
       names,
+      roadClass,
+      urban,
+      summary: (leg?.summary as string) || null,
       steps,
       controls,
       source: 'mapbox' as const,

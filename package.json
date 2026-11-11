@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "fetch-data": "node scripts/fetch-osm.mjs accra",
+    "fetch-data": "node scripts/fetch-osm.mjs ghana",
     "preview": "vite preview",
     "fast": "vite build && vite preview --port 4173"
   },
